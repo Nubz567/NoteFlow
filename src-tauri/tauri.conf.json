@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "noteflow",
+  "productName": "NoteFlow",
   "version": "0.1.0",
   "identifier": "com.noteflow.app",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "noteflow",
+        "title": "NoteFlow",
         "width": 800,
         "height": 600
       }

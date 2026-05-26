@@ -8,8 +8,13 @@ type Note = {
 };
 
 type Page = "notes" | "edit";
+type StoredNote = Omit<Note, "createdAt"> & {
+  createdAt: string;
+};
 
-const notes: Note[] = [];
+const NOTES_STORAGE_KEY = "noteflow.notes";
+
+const notes: Note[] = loadSavedNotes();
 let selectedNoteId: string | null = null;
 let currentPage: Page = "notes";
 
@@ -55,32 +60,44 @@ function renderEditPage() {
   return `
     <main class="edit-page">
       <section class="note-editor" aria-label="Edit note">
-        <div class="note-editor-header">
-          <button class="back-button" type="button" data-back-to-notes>
-            Back to notes
-          </button>
-          <div class="editor-actions">
-            <button class="rename-note-button" type="button" data-rename-note>
-              Rename
-            </button>
-            <button class="delete-note-button" type="button" data-delete-note>
-              Delete
-            </button>
+        <div class="editor-top-row">
+          <input
+            class="note-title-input"
+            data-note-title
+            value="${escapeHtml(selectedNote.title)}"
+            aria-label="Note title"
+          />
+
+          <div class="format-toolbar" aria-label="Text formatting">
+            <button type="button" data-format="bold">Bold</button>
+            <button type="button" data-format="italic">Italics</button>
+            <button type="button" data-format="heading">Heading</button>
+            <button type="button" data-format="bullet-list">Bullets</button>
+            <button type="button" data-format="numbered-list">Numbering</button>
           </div>
         </div>
 
-        <input
-          class="note-title-input"
-          data-note-title
-          value="${escapeHtml(selectedNote.title)}"
-          aria-label="Note title"
-        />
-        <textarea
+        <div class="editor-actions">
+          <button class="back-button" type="button" data-back-to-notes>
+            Back to notes
+          </button>
+          <button class="rename-note-button" type="button" data-rename-note>
+            Rename
+          </button>
+          <button class="delete-note-button" type="button" data-delete-note>
+            Delete
+          </button>
+        </div>
+
+        <div
           class="note-content-input"
           data-note-content
-          placeholder="Start writing your note..."
+          contenteditable="true"
+          role="textbox"
+          aria-multiline="true"
           aria-label="Note content"
-        >${escapeHtml(selectedNote.content)}</textarea>
+          data-placeholder="Start writing your note..."
+        >${selectedNote.content}</div>
       </section>
     </main>
   `;
@@ -137,6 +154,7 @@ function bindHomePageEvents(app: HTMLDivElement) {
     const input = event.target as HTMLInputElement;
 
     selectedNote.title = input.value || "Untitled note";
+    saveNotes();
   });
 
   app.querySelector("[data-rename-note]")?.addEventListener("click", () => {
@@ -147,10 +165,17 @@ function bindHomePageEvents(app: HTMLDivElement) {
     deleteSelectedNote(selectedNote);
   });
 
-  app.querySelector<HTMLTextAreaElement>("[data-note-content]")?.addEventListener("input", (event) => {
-    const textarea = event.target as HTMLTextAreaElement;
+  app.querySelectorAll<HTMLButtonElement>("[data-format]").forEach((button) => {
+    button.addEventListener("click", () => {
+      applyTextFormatting(button.dataset.format, selectedNote);
+    });
+  });
 
-    selectedNote.content = textarea.value;
+  app.querySelector<HTMLDivElement>("[data-note-content]")?.addEventListener("input", (event) => {
+    const editor = event.target as HTMLDivElement;
+
+    selectedNote.content = editor.innerHTML;
+    saveNotes();
   });
 }
 
@@ -164,6 +189,7 @@ function createNote() {
   };
 
   notes.push(note);
+  saveNotes();
   selectedNoteId = note.id;
   currentPage = "edit";
   renderHomePage();
@@ -181,6 +207,7 @@ function renameSelectedNote(note: Note) {
   }
 
   note.title = newTitle;
+  saveNotes();
   renderHomePage();
 }
 
@@ -198,9 +225,71 @@ function deleteSelectedNote(note: Note) {
   }
 
   notes.splice(noteIndex, 1);
+  saveNotes();
   selectedNoteId = null;
   currentPage = "notes";
   renderHomePage();
+}
+
+function applyTextFormatting(format: string | undefined, note: Note) {
+  const editor = document.querySelector<HTMLDivElement>("[data-note-content]");
+
+  if (!editor) {
+    return;
+  }
+
+  editor.focus();
+
+  if (format === "bold") {
+    document.execCommand("bold");
+  }
+
+  if (format === "italic") {
+    document.execCommand("italic");
+  }
+
+  if (format === "heading") {
+    document.execCommand("formatBlock", false, "h2");
+  }
+
+  if (format === "bullet-list") {
+    document.execCommand("insertUnorderedList");
+  }
+
+  if (format === "numbered-list") {
+    document.execCommand("insertOrderedList");
+  }
+
+  note.content = editor.innerHTML;
+  saveNotes();
+}
+
+function loadSavedNotes() {
+  const savedNotes = localStorage.getItem(NOTES_STORAGE_KEY);
+
+  if (!savedNotes) {
+    return [];
+  }
+
+  try {
+    const parsedNotes = JSON.parse(savedNotes) as StoredNote[];
+
+    return parsedNotes.map((note) => ({
+      ...note,
+      createdAt: new Date(note.createdAt),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function saveNotes() {
+  const notesToStore: StoredNote[] = notes.map((note) => ({
+    ...note,
+    createdAt: note.createdAt.toISOString(),
+  }));
+
+  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notesToStore));
 }
 
 function escapeHtml(value: string) {
