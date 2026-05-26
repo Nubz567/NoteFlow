@@ -7,8 +7,11 @@ type Note = {
   createdAt: Date;
 };
 
+type Page = "notes" | "edit";
+
 const notes: Note[] = [];
 let selectedNoteId: string | null = null;
+let currentPage: Page = "notes";
 
 export function renderHomePage() {
   const app = document.querySelector<HTMLDivElement>("#app");
@@ -17,116 +20,112 @@ export function renderHomePage() {
     return;
   }
 
-  const selectedNote = getSelectedNote();
-
-  app.innerHTML = `
-    <main class="app-shell">
-      <aside class="sidebar">
-        <div>
-          <p class="eyebrow">NoteFlow</p>
-          <h1>Your notes</h1>
-          <p class="sidebar-copy">Capture ideas, drafts, and reminders in one calm place.</p>
-        </div>
-
-        <div class="notes-panel">
-          <button class="create-note-button" type="button" data-create-note>
-            Create note
-          </button>
-
-          <div class="note-list" aria-label="Notes">
-            ${renderNoteList()}
-          </div>
-        </div>
-      </aside>
-
-      ${selectedNote ? renderEditor(selectedNote) : renderEmptyState()}
-    </main>
-  `;
-
+  app.innerHTML = currentPage === "edit" ? renderEditPage() : renderNotesPage();
   bindHomePageEvents(app);
 }
 
-function createNote() {
-  const noteNumber = notes.length + 1;
-  const note: Note = {
-    id: crypto.randomUUID(),
-    title: `Untitled note ${noteNumber}`,
-    content: "",
-    createdAt: new Date(),
-  };
+function renderNotesPage() {
+  return `
+    <main class="notes-page">
+      <section class="notes-board" aria-label="Your notes">
+        <header class="notes-title-card">
+          <h1>Your notes</h1>
+        </header>
 
-  notes.unshift(note);
-  selectedNoteId = note.id;
-  renderHomePage();
+        <div class="notes-grid" aria-label="Notes">
+          ${renderNoteCards()}
+        </div>
+
+        <button class="create-note-button" type="button" data-create-note>
+          Create new note
+        </button>
+      </section>
+    </main>
+  `;
 }
 
-function getSelectedNote() {
-  return notes.find((note) => note.id === selectedNoteId) ?? null;
+function renderEditPage() {
+  const selectedNote = getSelectedNote();
+
+  if (!selectedNote) {
+    currentPage = "notes";
+    return renderNotesPage();
+  }
+
+  return `
+    <main class="edit-page">
+      <section class="note-editor" aria-label="Edit note">
+        <div class="note-editor-header">
+          <button class="back-button" type="button" data-back-to-notes>
+            Back to notes
+          </button>
+          <div class="editor-actions">
+            <button class="rename-note-button" type="button" data-rename-note>
+              Rename
+            </button>
+            <button class="delete-note-button" type="button" data-delete-note>
+              Delete
+            </button>
+          </div>
+        </div>
+
+        <input
+          class="note-title-input"
+          data-note-title
+          value="${escapeHtml(selectedNote.title)}"
+          aria-label="Note title"
+        />
+        <textarea
+          class="note-content-input"
+          data-note-content
+          placeholder="Start writing your note..."
+          aria-label="Note content"
+        >${escapeHtml(selectedNote.content)}</textarea>
+      </section>
+    </main>
+  `;
 }
 
-function renderNoteList() {
+function renderNoteCards() {
   if (notes.length === 0) {
-    return `<p class="empty-note-list">No notes yet.</p>`;
+    return `
+      <div class="empty-notes-message">
+        <h2>No notes yet</h2>
+        <p>Create your first note to start writing.</p>
+      </div>
+    `;
   }
 
   return notes
-    .map((note) => {
-      const isSelected = note.id === selectedNoteId;
-
-      return `
+    .map(
+      (note, index) => `
         <button
-          class="note-list-item ${isSelected ? "selected" : ""}"
+          class="note-card note-card-${(index % 6) + 1}"
           type="button"
           data-note-id="${note.id}"
         >
           <span>${escapeHtml(note.title)}</span>
-          <small>${formatDate(note.createdAt)}</small>
         </button>
-      `;
-    })
+      `,
+    )
     .join("");
-}
-
-function renderEmptyState() {
-  return `
-    <section class="empty-state" aria-label="Note editor">
-      <p class="eyebrow">Editor</p>
-      <h2>Select or create a note</h2>
-      <p>Your note editor will appear here once you create your first note.</p>
-    </section>
-  `;
-}
-
-function renderEditor(note: Note) {
-  return `
-    <section class="note-editor" aria-label="Note editor">
-      <div class="note-editor-header">
-        <input
-          class="note-title-input"
-          data-note-title
-          value="${escapeHtml(note.title)}"
-          aria-label="Note title"
-        />
-        <button class="rename-note-button" type="button" data-rename-note>
-          Rename
-        </button>
-        <button class="delete-note-button" type="button" data-delete-note>
-          Delete
-        </button>
-      </div>
-      <textarea
-        class="note-content-input"
-        data-note-content
-        placeholder="Start writing your note..."
-        aria-label="Note content"
-      >${escapeHtml(note.content)}</textarea>
-    </section>
-  `;
 }
 
 function bindHomePageEvents(app: HTMLDivElement) {
   app.querySelector("[data-create-note]")?.addEventListener("click", createNote);
-  bindNoteSelectionEvents(app);
+
+  app.querySelectorAll<HTMLButtonElement>("[data-note-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedNoteId = button.dataset.noteId ?? null;
+      currentPage = "edit";
+      renderHomePage();
+    });
+  });
+
+  app.querySelector("[data-back-to-notes]")?.addEventListener("click", () => {
+    currentPage = "notes";
+    renderHomePage();
+  });
 
   const selectedNote = getSelectedNote();
 
@@ -138,7 +137,6 @@ function bindHomePageEvents(app: HTMLDivElement) {
     const input = event.target as HTMLInputElement;
 
     selectedNote.title = input.value || "Untitled note";
-    renderNoteListOnly(app);
   });
 
   app.querySelector("[data-rename-note]")?.addEventListener("click", () => {
@@ -156,13 +154,23 @@ function bindHomePageEvents(app: HTMLDivElement) {
   });
 }
 
-function bindNoteSelectionEvents(app: HTMLDivElement) {
-  app.querySelectorAll<HTMLButtonElement>("[data-note-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      selectedNoteId = button.dataset.noteId ?? null;
-      renderHomePage();
-    });
-  });
+function createNote() {
+  const noteNumber = notes.length + 1;
+  const note: Note = {
+    id: crypto.randomUUID(),
+    title: `Note ${noteNumber}`,
+    content: "",
+    createdAt: new Date(),
+  };
+
+  notes.push(note);
+  selectedNoteId = note.id;
+  currentPage = "edit";
+  renderHomePage();
+}
+
+function getSelectedNote() {
+  return notes.find((note) => note.id === selectedNoteId) ?? null;
 }
 
 function renameSelectedNote(note: Note) {
@@ -190,17 +198,9 @@ function deleteSelectedNote(note: Note) {
   }
 
   notes.splice(noteIndex, 1);
-  selectedNoteId = notes[noteIndex]?.id ?? notes[noteIndex - 1]?.id ?? null;
+  selectedNoteId = null;
+  currentPage = "notes";
   renderHomePage();
-}
-
-function renderNoteListOnly(app: HTMLDivElement) {
-  const noteList = app.querySelector<HTMLDivElement>(".note-list");
-
-  if (noteList) {
-    noteList.innerHTML = renderNoteList();
-    bindNoteSelectionEvents(app);
-  }
 }
 
 function escapeHtml(value: string) {
@@ -210,11 +210,4 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-}
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
 }
