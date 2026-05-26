@@ -1,4 +1,4 @@
-import { renderHomePage } from "./webpages/home";
+import { renderHomePage } from "./home";
 
 window.addEventListener("DOMContentLoaded", () => {
   renderHomePage();
