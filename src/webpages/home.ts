@@ -8,12 +8,14 @@ type Note = {
   pinned: boolean;
   order: number;
   notebookId: string | null;
+  color: string;
 };
 
 type Notebook = {
   id: string;
   name: string;
   createdAt: Date;
+  color: string;
 };
 
 type Page = "notes" | "edit" | "settings";
@@ -34,6 +36,22 @@ type AppSettings = {
 const NOTES_STORAGE_KEY = "noteflow.notes";
 const NOTEBOOKS_STORAGE_KEY = "noteflow.notebooks";
 const SETTINGS_STORAGE_KEY = "noteflow.settings";
+const DEFAULT_NOTE_COLOR = "none";
+const DEFAULT_NOTEBOOK_COLOR = "none";
+const MAX_NOTE_TITLE_LENGTH = 25;
+const COLOR_PRESETS = [
+  { id: "none", label: "None", value: "transparent" },
+  { id: "red", label: "Red", value: "#fecaca" },
+  { id: "orange", label: "Orange", value: "#fed7aa" },
+  { id: "yellow", label: "Yellow", value: "#fef08a" },
+  { id: "green", label: "Green", value: "#bbf7d0" },
+  { id: "blue", label: "Blue", value: "#bfdbfe" },
+  { id: "purple", label: "Purple", value: "#ddd6fe" },
+  { id: "pink", label: "Pink", value: "#fbcfe8" },
+  { id: "black", label: "Black", value: "#111827" },
+  { id: "white", label: "White", value: "#ffffff" },
+  { id: "brown", label: "Brown", value: "#b45309" },
+] as const;
 
 const notes: Note[] = loadSavedNotes();
 const notebooks: Notebook[] = loadSavedNotebooks();
@@ -217,18 +235,42 @@ function renderEditPage() {
       <section class="note-editor" aria-label="Edit note">
         <div class="editor-top-row">
           <input
-            class="note-title-input"
+            class="note-title-input ${getNoteTitleSizeClass(selectedNote.title)}"
             data-note-title
+            maxlength="${MAX_NOTE_TITLE_LENGTH}"
             value="${escapeHtml(selectedNote.title)}"
             aria-label="Note title"
           />
 
           <div class="format-toolbar" aria-label="Text formatting">
-            <button type="button" data-format="bold">Bold</button>
-            <button type="button" data-format="italic">Italics</button>
-            <button type="button" data-format="heading">Heading</button>
-            <button type="button" data-format="bullet-list">Bullets</button>
-            <button type="button" data-format="numbered-list">Numbering</button>
+            <button class="format-button" type="button" data-format="bold">Bold</button>
+            <button class="format-button" type="button" data-format="italic">Italics</button>
+
+            <div class="format-menu">
+              <button class="format-button" type="button">Numberings</button>
+              <div class="format-dropdown">
+                <button type="button" data-format="bullet-list">Bullet points</button>
+                <button type="button" data-format="numbered-list">Numbers</button>
+                <button type="button" data-format="checklist">Checklist</button>
+              </div>
+            </div>
+
+            <div class="format-menu">
+              <button class="format-button" type="button">Headings</button>
+              <div class="format-dropdown">
+                <button type="button" data-format="heading">Heading</button>
+                <button type="button" data-format="subheading">Sub heading</button>
+                <button type="button" data-format="title">Title</button>
+              </div>
+            </div>
+
+            <div class="format-menu">
+              <button class="format-button" type="button">Tables</button>
+              <div class="format-dropdown table-dropdown">
+                <span>Insert</span>
+                <button type="button" data-format="insert-table">2 x 2 table</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -289,10 +331,26 @@ function renderNotebooks() {
       const notebookNotes = getMatchingNotes().filter((note) => note.notebookId === notebook.id);
 
       return `
-        <article class="notebook-card" data-notebook-drop-id="${notebook.id}">
+        <article class="notebook-card" data-notebook-drop-id="${notebook.id}" style="background-color: ${getPresetColorValue(notebook.color)}; color: ${getContrastColor(notebook.color)}">
           <div class="notebook-card-header">
             <h3>${escapeHtml(notebook.name)}</h3>
-            <span>${notebookNotes.length} notes</span>
+            <div class="notebook-card-actions">
+              <span>${notebookNotes.length} notes</span>
+              <div class="color-picker-label">
+                <span>Color</span>
+                <div class="color-options" aria-label="Choose color for notebook ${escapeHtml(notebook.name)}">
+                  ${renderColorOptions("notebook", notebook.id, notebook.color)}
+                </div>
+              </div>
+              <button
+                class="delete-notebook-button"
+                type="button"
+                data-delete-notebook-id="${notebook.id}"
+                aria-label="Delete notebook ${escapeHtml(notebook.name)}"
+              >
+                Delete
+              </button>
+            </div>
           </div>
           <div class="notebook-notes">
             ${
@@ -315,6 +373,7 @@ function renderNoteCardsForList(notesToRender: Note[]) {
           class="note-card note-card-${(index % 6) + 1} ${note.pinned ? "pinned" : ""}"
           data-note-id="${note.id}"
           data-drag-note-id="${note.id}"
+          style="background-color: ${getPresetColorValue(note.color)}; color: ${getContrastColor(note.color)}"
           role="button"
           tabindex="0"
         >
@@ -332,6 +391,12 @@ function renderNoteCardsForList(notesToRender: Note[]) {
           >
             ${note.pinned ? "Pinned" : "Pin"}
           </button>
+          <div class="color-picker-label">
+            <span>Color</span>
+            <div class="color-options" aria-label="Choose color for ${escapeHtml(note.title)}">
+              ${renderColorOptions("note", note.id, note.color)}
+            </div>
+          </div>
           <button
             class="delete-note-button note-card-delete-button"
             type="button"
@@ -392,6 +457,8 @@ function bindHomePageEvents(app: HTMLDivElement) {
 
   bindPinNoteEvents(app);
   bindDeleteNoteEvents(app);
+  bindDeleteNotebookEvents(app);
+  bindColorEvents(app);
   bindDragNoteEvents(app);
 
   app.querySelector("[data-back-to-notes]")?.addEventListener("click", () => {
@@ -407,8 +474,14 @@ function bindHomePageEvents(app: HTMLDivElement) {
 
   app.querySelector<HTMLInputElement>("[data-note-title]")?.addEventListener("input", (event) => {
     const input = event.target as HTMLInputElement;
+    const title = limitNoteTitle(input.value);
 
-    selectedNote.title = input.value || "Untitled note";
+    if (input.value !== title) {
+      input.value = title;
+    }
+
+    selectedNote.title = title || "Untitled note";
+    updateNoteTitleSize(input);
     saveNotes();
   });
 
@@ -417,6 +490,10 @@ function bindHomePageEvents(app: HTMLDivElement) {
   });
 
   app.querySelectorAll<HTMLButtonElement>("[data-format]").forEach((button) => {
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+    });
+
     button.addEventListener("click", () => {
       applyTextFormatting(button.dataset.format, selectedNote);
     });
@@ -440,6 +517,7 @@ function createNote() {
     pinned: false,
     order: getNextNoteOrder(),
     notebookId: null,
+    color: DEFAULT_NOTE_COLOR,
   };
 
   notes.push(note);
@@ -460,6 +538,7 @@ function createNotebook() {
     id: crypto.randomUUID(),
     name,
     createdAt: new Date(),
+    color: DEFAULT_NOTEBOOK_COLOR,
   });
   saveNotebooks();
   renderHomePage();
@@ -500,6 +579,8 @@ function renderNotesCollectionsOnly(app: HTMLDivElement) {
   bindNoteOpenEvents(app);
   bindPinNoteEvents(app);
   bindDeleteNoteEvents(app);
+  bindDeleteNotebookEvents(app);
+  bindColorEvents(app);
   bindDragNoteEvents(app);
 }
 
@@ -510,7 +591,7 @@ function bindNoteOpenEvents(app: HTMLDivElement) {
         return;
       }
 
-      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id]")) {
+      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id], .color-picker-label")) {
         return;
       }
 
@@ -531,7 +612,7 @@ function bindNoteOpenEvents(app: HTMLDivElement) {
 function bindDragNoteEvents(app: HTMLDivElement) {
   app.querySelectorAll<HTMLElement>("[data-drag-note-id]").forEach((card) => {
     card.addEventListener("pointerdown", (event) => {
-      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id]")) {
+      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id], .color-picker-label")) {
         return;
       }
 
@@ -692,6 +773,75 @@ function bindDeleteNoteEvents(app: HTMLDivElement) {
   });
 }
 
+function bindDeleteNotebookEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLButtonElement>("[data-delete-notebook-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const notebook = notebooks.find((item) => item.id === button.dataset.deleteNotebookId);
+
+      if (!notebook) {
+        return;
+      }
+
+      deleteNotebook(notebook);
+    });
+  });
+}
+
+function bindColorEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLButtonElement>("[data-note-color-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const note = notes.find((item) => item.id === button.dataset.noteColorId);
+
+      if (!note) {
+        return;
+      }
+
+      note.color = getPresetColorId(button.dataset.colorValue);
+      saveNotes();
+      renderNotesCollectionsOnly(app);
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-notebook-color-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const notebook = notebooks.find((item) => item.id === button.dataset.notebookColorId);
+
+      if (!notebook) {
+        return;
+      }
+
+      notebook.color = getPresetColorId(button.dataset.colorValue);
+      saveNotebooks();
+      renderNotesCollectionsOnly(app);
+    });
+  });
+}
+
+function deleteNotebook(notebook: Notebook) {
+  const shouldDelete = window.confirm(`Delete notebook "${notebook.name}"? Notes inside it will move back to Notes.`);
+
+  if (!shouldDelete) {
+    return;
+  }
+
+  const notebookIndex = notebooks.findIndex((item) => item.id === notebook.id);
+
+  if (notebookIndex === -1) {
+    return;
+  }
+
+  notebooks.splice(notebookIndex, 1);
+  notes.forEach((note) => {
+    if (note.notebookId === notebook.id) {
+      note.notebookId = null;
+    }
+  });
+
+  saveNotebooks();
+  saveNotes();
+  renderHomePage();
+}
+
 function getSortedNotes(notesToSort: Note[]) {
   return [...notesToSort].sort((first, second) => {
     if (first.pinned !== second.pinned) {
@@ -715,7 +865,7 @@ function getSortedNotes(notesToSort: Note[]) {
 }
 
 function renameSelectedNote(note: Note) {
-  const newTitle = window.prompt("Rename note", note.title)?.trim();
+  const newTitle = normalizeNoteTitle(window.prompt("Rename note", note.title) ?? "");
 
   if (!newTitle) {
     return;
@@ -724,6 +874,49 @@ function renameSelectedNote(note: Note) {
   note.title = newTitle;
   saveNotes();
   renderHomePage();
+}
+
+function normalizeNoteTitle(title: string) {
+  return limitNoteTitle(title.trim());
+}
+
+function limitNoteTitle(title: string) {
+  return title.slice(0, MAX_NOTE_TITLE_LENGTH);
+}
+
+function getNoteTitleSizeClass(title: string) {
+  if (title.length >= 21) {
+    return "note-title-input-size-4";
+  }
+
+  if (title.length >= 16) {
+    return "note-title-input-size-3";
+  }
+
+  if (title.length >= 11) {
+    return "note-title-input-size-2";
+  }
+
+  if (title.length >= 6) {
+    return "note-title-input-size-1";
+  }
+
+  return "";
+}
+
+function updateNoteTitleSize(input: HTMLInputElement) {
+  input.classList.remove(
+    "note-title-input-size-1",
+    "note-title-input-size-2",
+    "note-title-input-size-3",
+    "note-title-input-size-4",
+  );
+
+  const sizeClass = getNoteTitleSizeClass(input.value);
+
+  if (sizeClass) {
+    input.classList.add(sizeClass);
+  }
 }
 
 function deleteSelectedNote(note: Note) {
@@ -767,12 +960,36 @@ function applyTextFormatting(format: string | undefined, note: Note) {
     document.execCommand("formatBlock", false, "h2");
   }
 
+  if (format === "subheading") {
+    document.execCommand("formatBlock", false, "h3");
+  }
+
+  if (format === "title") {
+    document.execCommand("formatBlock", false, "h1");
+  }
+
   if (format === "bullet-list") {
     document.execCommand("insertUnorderedList");
   }
 
   if (format === "numbered-list") {
     document.execCommand("insertOrderedList");
+  }
+
+  if (format === "checklist") {
+    document.execCommand(
+      "insertHTML",
+      false,
+      `<ul class="checklist"><li><label><input type="checkbox" /> Checklist item</label></li></ul>`,
+    );
+  }
+
+  if (format === "insert-table") {
+    document.execCommand(
+      "insertHTML",
+      false,
+      `<table><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table>`,
+    );
   }
 
   note.content = editor.innerHTML;
@@ -791,10 +1008,12 @@ function loadSavedNotes() {
 
     return parsedNotes.map((note, index) => ({
       ...note,
+      title: normalizeNoteTitle(note.title) || "Untitled note",
       createdAt: new Date(note.createdAt),
       pinned: Boolean(note.pinned),
       order: typeof note.order === "number" ? note.order : index,
       notebookId: typeof note.notebookId === "string" ? note.notebookId : null,
+      color: getPresetColorId(note.color),
     }));
   } catch {
     return [];
@@ -814,6 +1033,7 @@ function loadSavedNotebooks() {
     return parsedNotebooks.map((notebook) => ({
       ...notebook,
       createdAt: new Date(notebook.createdAt),
+      color: getPresetColorId(notebook.color),
     }));
   } catch {
     return [];
@@ -911,6 +1131,61 @@ function getStableRandomValue(value: string) {
   return [...value].reduce((hash, character) => {
     return (hash * 31 + character.charCodeAt(0)) % 100000;
   }, 7);
+}
+
+function renderColorOptions(targetType: "note" | "notebook", targetId: string, selectedColor: string) {
+  const selectedPreset = getPresetColorId(selectedColor);
+
+  return COLOR_PRESETS.map((preset) => {
+    const dataAttribute = targetType === "note" ? `data-note-color-id="${targetId}"` : `data-notebook-color-id="${targetId}"`;
+    const selectedClass = preset.id === selectedPreset ? "selected" : "";
+
+    return `
+      <button
+        class="color-option ${selectedClass}"
+        type="button"
+        ${dataAttribute}
+        data-color-value="${preset.id}"
+        title="${preset.label}"
+        aria-label="${preset.label}"
+        style="background-color: ${getPresetColorValue(preset.id)}"
+      ></button>
+    `;
+  }).join("");
+}
+
+function getPresetColorId(value: unknown) {
+  if (typeof value !== "string") {
+    return "none";
+  }
+
+  const matchingPreset = COLOR_PRESETS.find((preset) => preset.id === value || preset.value.toLowerCase() === value.toLowerCase());
+
+  return matchingPreset?.id ?? "none";
+}
+
+function getPresetColorValue(colorId: string) {
+  const preset = COLOR_PRESETS.find((item) => item.id === getPresetColorId(colorId));
+
+  if (!preset || preset.id === "none") {
+    return "var(--surface-background)";
+  }
+
+  return preset.value;
+}
+
+function getContrastColor(colorId: string) {
+  if (getPresetColorId(colorId) === "none") {
+    return "var(--surface-text)";
+  }
+
+  const color = getPresetColorValue(colorId);
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return brightness > 150 ? "#020617" : "#ffffff";
 }
 
 function escapeHtml(value: string) {

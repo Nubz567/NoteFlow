@@ -162,9 +162,65 @@
   gap: 12px;
 }
 
+.notebook-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.color-picker-label {
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border: 2px solid #0f172a;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #0f172a;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.color-options {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  top: calc(100% + 6px);
+  display: none;
+  grid-template-columns: repeat(5, 24px);
+  gap: 6px;
+  border: 2px solid #0f172a;
+  border-radius: 14px;
+  padding: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+}
+
+.color-picker-label:hover .color-options,
+.color-picker-label:focus-within .color-options {
+  display: grid;
+}
+
+.color-option {
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #0f172a;
+  border-radius: 999px;
+  padding: 0;
+}
+
+.color-option.selected {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
 .notebook-card-header h3 {
   margin: 0;
-  color: #020617;
+  color: inherit;
   font-size: 1.2rem;
   font-weight: 900;
 }
@@ -173,7 +229,6 @@
 .empty-notebooks-message,
 .empty-notebook-message {
   margin: 0;
-  color: #64748b;
   font-weight: 800;
 }
 
@@ -254,9 +309,11 @@
 }
 
 .pin-note-button,
-.note-card-delete-button {
+.note-card-delete-button,
+.note-card .color-picker-label {
   cursor: pointer;
   justify-self: start;
+  min-width: 64px;
   border: 2px solid #0f172a;
   border-radius: 999px;
   padding: 4px 10px;
@@ -276,6 +333,21 @@
 }
 
 .note-card-delete-button:hover {
+  background: #fef2f2;
+}
+
+.delete-notebook-button {
+  cursor: pointer;
+  border: 2px solid #dc2626;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #dc2626;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.delete-notebook-button:hover {
   background: #fef2f2;
 }
 
@@ -517,10 +589,27 @@
   line-height: 1;
 }
 
+.note-title-input-size-1 {
+  font-size: clamp(1.55rem, 4.2vw, 3rem);
+}
+
+.note-title-input-size-2 {
+  font-size: clamp(1.25rem, 3.2vw, 2.35rem);
+}
+
+.note-title-input-size-3 {
+  font-size: clamp(1rem, 2.45vw, 1.75rem);
+}
+
+.note-title-input-size-4 {
+  font-size: clamp(0.82rem, 1.8vw, 1.25rem);
+}
+
 .format-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 16px;
   min-height: 84px;
   padding: 14px 20px;
   border: 4px solid #0f172a;
@@ -528,18 +617,48 @@
   background: #ffffff;
 }
 
-.format-toolbar button {
+.format-button,
+.format-dropdown button {
   cursor: pointer;
-  border: 0;
+  border: 3px solid #0f172a;
   border-radius: 12px;
   padding: 10px 12px;
   color: #020617;
-  background: transparent;
+  background: #ffffff;
   font-weight: 900;
 }
 
-.format-toolbar button:hover {
+.format-button:hover,
+.format-dropdown button:hover {
   background: #eff6ff;
+}
+
+.format-menu {
+  position: relative;
+}
+
+.format-dropdown {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  top: calc(100% + 8px);
+  display: none;
+  min-width: 150px;
+  border: 4px solid #0f172a;
+  border-radius: 0 0 8px 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.format-menu:hover .format-dropdown,
+.format-menu:focus-within .format-dropdown {
+  display: grid;
+  gap: 8px;
+}
+
+.table-dropdown span {
+  color: #020617;
+  font-weight: 900;
 }
 
 .note-content-input {
@@ -562,11 +681,24 @@
   font-weight: 800;
 }
 
-.note-content-input h2 {
+.note-content-input h1,
+.note-content-input h2,
+.note-content-input h3 {
   margin: 0 0 12px;
   color: #020617;
-  font-size: 2rem;
   line-height: 1.15;
+}
+
+.note-content-input h1 {
+  font-size: 2.6rem;
+}
+
+.note-content-input h2 {
+  font-size: 2rem;
+}
+
+.note-content-input h3 {
+  font-size: 1.45rem;
 }
 
 .note-content-input p {
@@ -577,6 +709,30 @@
 .note-content-input ol {
   margin: 0 0 12px;
   padding-left: 28px;
+}
+
+.note-content-input .checklist {
+  list-style: none;
+  padding-left: 0;
+}
+
+.note-content-input .checklist label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note-content-input table {
+  width: 100%;
+  margin: 0 0 12px;
+  border-collapse: collapse;
+}
+
+.note-content-input td,
+.note-content-input th {
+  border: 2px solid #0f172a;
+  padding: 10px;
+  min-width: 80px;
 }
 
 @media (max-width: 860px) {
@@ -661,8 +817,13 @@
   :root:not([data-theme]) .note-card,
   :root:not([data-theme]) .pin-note-button,
   :root:not([data-theme]) .note-card-delete-button,
+  :root:not([data-theme]) .delete-notebook-button,
+  :root:not([data-theme]) .color-picker-label,
   :root:not([data-theme]) .create-note-button,
   :root:not([data-theme]) .format-toolbar,
+  :root:not([data-theme]) .format-button,
+  :root:not([data-theme]) .format-dropdown,
+  :root:not([data-theme]) .format-dropdown button,
   :root:not([data-theme]) .note-title-input,
   :root:not([data-theme]) .note-content-input,
   :root:not([data-theme]) .back-button,
@@ -686,8 +847,12 @@
   :root:not([data-theme]) .empty-notes-message h2,
   :root:not([data-theme]) .note-title-input,
   :root:not([data-theme]) .note-content-input,
+  :root:not([data-theme]) .note-content-input h1,
   :root:not([data-theme]) .note-content-input h2,
-  :root:not([data-theme]) .format-toolbar button,
+  :root:not([data-theme]) .note-content-input h3,
+  :root:not([data-theme]) .format-button,
+  :root:not([data-theme]) .format-dropdown button,
+  :root:not([data-theme]) .table-dropdown span,
   :root:not([data-theme]) .brightness-control {
     color: #f8fafc;
   }
@@ -699,7 +864,8 @@
   :root:not([data-theme]) .settings-button:hover,
   :root:not([data-theme]) .back-button:hover,
   :root:not([data-theme]) .rename-note-button:hover,
-  :root:not([data-theme]) .format-toolbar button:hover,
+  :root:not([data-theme]) .format-button:hover,
+  :root:not([data-theme]) .format-dropdown button:hover,
   :root:not([data-theme]) .theme-option:hover,
   :root:not([data-theme]) .theme-option.selected {
     background: #172554;
@@ -734,8 +900,13 @@
 :root[data-theme="dark"] .note-card,
 :root[data-theme="dark"] .pin-note-button,
 :root[data-theme="dark"] .note-card-delete-button,
+:root[data-theme="dark"] .delete-notebook-button,
+:root[data-theme="dark"] .color-picker-label,
 :root[data-theme="dark"] .create-note-button,
 :root[data-theme="dark"] .format-toolbar,
+:root[data-theme="dark"] .format-button,
+:root[data-theme="dark"] .format-dropdown,
+:root[data-theme="dark"] .format-dropdown button,
 :root[data-theme="dark"] .note-title-input,
 :root[data-theme="dark"] .note-content-input,
 :root[data-theme="dark"] .back-button,
@@ -759,8 +930,12 @@
 :root[data-theme="dark"] .empty-notes-message h2,
 :root[data-theme="dark"] .note-title-input,
 :root[data-theme="dark"] .note-content-input,
+:root[data-theme="dark"] .note-content-input h1,
 :root[data-theme="dark"] .note-content-input h2,
-:root[data-theme="dark"] .format-toolbar button,
+:root[data-theme="dark"] .note-content-input h3,
+:root[data-theme="dark"] .format-button,
+:root[data-theme="dark"] .format-dropdown button,
+:root[data-theme="dark"] .table-dropdown span,
 :root[data-theme="dark"] .brightness-control {
   color: #f8fafc;
 }
@@ -772,7 +947,8 @@
 :root[data-theme="dark"] .settings-button:hover,
 :root[data-theme="dark"] .back-button:hover,
 :root[data-theme="dark"] .rename-note-button:hover,
-:root[data-theme="dark"] .format-toolbar button:hover,
+:root[data-theme="dark"] .format-button:hover,
+:root[data-theme="dark"] .format-dropdown button:hover,
 :root[data-theme="dark"] .theme-option:hover,
 :root[data-theme="dark"] .theme-option.selected {
   background: #172554;

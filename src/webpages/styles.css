@@ -3,6 +3,8 @@
   font-size: 16px;
   font-weight: 400;
   --app-brightness: 100%;
+  --surface-background: #eef2f7;
+  --surface-text: #172033;
   color: #172033;
   background-color: #eef2f7;
   font-synthesis: none;
@@ -29,17 +31,23 @@ button {
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    --surface-background: #111827;
+    --surface-text: #e5e7eb;
     color: #e5e7eb;
     background-color: #111827;
   }
 }
 
 :root[data-theme="light"] {
+  --surface-background: #eef2f7;
+  --surface-text: #172033;
   color: #172033;
   background-color: #eef2f7;
 }
 
 :root[data-theme="dark"] {
+  --surface-background: #111827;
+  --surface-text: #e5e7eb;
   color: #e5e7eb;
   background-color: #111827;
 }
