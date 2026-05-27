@@ -1,15 +1,18 @@
 .notes-page,
-.edit-page {
+.edit-page,
+.settings-page {
   min-height: 100vh;
   padding: 28px;
 }
 
-.notes-page {
+.notes-page,
+.settings-page {
   display: grid;
   place-items: center;
 }
 
 .notes-board {
+  position: relative;
   width: min(1040px, 100%);
   min-height: 620px;
   display: flex;
@@ -19,6 +22,23 @@
   border: 4px solid #0f172a;
   border-radius: 72px;
   background: #ffffff;
+}
+
+.settings-button {
+  cursor: pointer;
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  border: 3px solid #0f172a;
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: #020617;
+  background: #ffffff;
+  font-weight: 900;
+}
+
+.settings-button:hover {
+  background: #eff6ff;
 }
 
 .notes-title-card {
@@ -39,6 +59,32 @@
   letter-spacing: -0.06em;
 }
 
+.notes-search {
+  align-self: center;
+  width: min(560px, 100%);
+  display: grid;
+  gap: 8px;
+  color: #020617;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.notes-search input {
+  width: 100%;
+  border: 4px solid #0f172a;
+  border-radius: 22px;
+  padding: 14px 18px;
+  color: #020617;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  outline: none;
+}
+
+.notes-search input:focus {
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+}
+
 .notes-grid {
   flex: 1;
   display: grid;
@@ -51,7 +97,10 @@
 }
 
 .note-card {
+  position: relative;
   cursor: pointer;
+  display: grid;
+  gap: 10px;
   min-height: 78px;
   border: 4px solid #0f172a;
   border-radius: 18px;
@@ -66,15 +115,47 @@
     transform 0.2s ease;
 }
 
-.note-card:hover {
+.note-card:hover,
+.note-card.pinned {
   background: #eff6ff;
   transform: translateY(-2px);
 }
 
-.note-card span {
+.note-card.pinned {
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
+}
+
+.note-open-button {
+  min-height: 36px;
+  color: inherit;
+  text-align: left;
+}
+
+.note-open-button span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.pin-note-button {
+  cursor: pointer;
+  justify-self: start;
+  border: 2px solid #0f172a;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #0f172a;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.pin-note-button:hover {
+  background: #dbeafe;
+}
+
+.note-card.pinned .pin-note-button {
+  color: #ffffff;
+  background: #2563eb;
 }
 
 .note-card-2,
@@ -128,6 +209,98 @@
 
 .edit-page {
   display: flex;
+}
+
+.settings-board {
+  width: min(880px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 32px;
+  border: 4px solid #0f172a;
+  border-radius: 48px;
+  background: #ffffff;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.settings-header h1 {
+  margin: 0;
+  color: #020617;
+  font-size: clamp(2.5rem, 7vw, 4.6rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.settings-card {
+  min-height: 180px;
+  border: 4px solid #0f172a;
+  border-radius: 28px;
+  padding: 22px;
+  color: #020617;
+  background: #ffffff;
+}
+
+.settings-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+}
+
+.settings-card p {
+  margin: 0 0 8px;
+  color: #475569;
+  font-weight: 800;
+}
+
+.setting-control-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.theme-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.theme-option {
+  cursor: pointer;
+  border: 3px solid #0f172a;
+  border-radius: 999px;
+  padding: 10px 14px;
+  color: #020617;
+  background: #ffffff;
+  font-weight: 900;
+}
+
+.theme-option:hover,
+.theme-option.selected {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.brightness-control {
+  display: grid;
+  gap: 12px;
+  color: #020617;
+  font-weight: 900;
+}
+
+.brightness-control input {
+  width: 100%;
+  accent-color: #2563eb;
 }
 
 .note-editor {
@@ -276,6 +449,20 @@
     width: 100%;
   }
 
+  .settings-button {
+    position: static;
+    align-self: flex-end;
+  }
+
+  .settings-header {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
   .editor-top-row {
     align-items: stretch;
     flex-direction: column;
@@ -296,35 +483,113 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .notes-board,
-  .notes-title-card,
-  .notes-grid,
-  .note-card,
-  .create-note-button,
-  .format-toolbar,
-  .note-title-input,
-  .note-content-input,
-  .back-button,
-  .rename-note-button {
+  :root:not([data-theme]) .notes-board,
+  :root:not([data-theme]) .notes-title-card,
+  :root:not([data-theme]) .settings-board,
+  :root:not([data-theme]) .settings-card,
+  :root:not([data-theme]) .notes-search input,
+  :root:not([data-theme]) .notes-grid,
+  :root:not([data-theme]) .note-card,
+  :root:not([data-theme]) .pin-note-button,
+  :root:not([data-theme]) .create-note-button,
+  :root:not([data-theme]) .format-toolbar,
+  :root:not([data-theme]) .note-title-input,
+  :root:not([data-theme]) .note-content-input,
+  :root:not([data-theme]) .back-button,
+  :root:not([data-theme]) .rename-note-button,
+  :root:not([data-theme]) .settings-button,
+  :root:not([data-theme]) .theme-option {
     border-color: #e5e7eb;
     color: #f8fafc;
     background: #1f2937;
   }
 
-  .notes-title-card h1,
-  .empty-notes-message h2,
-  .note-title-input,
-  .note-content-input,
-  .note-content-input h2,
-  .format-toolbar button {
+  :root:not([data-theme]) .notes-title-card h1,
+  :root:not([data-theme]) .settings-header h1,
+  :root:not([data-theme]) .notes-search,
+  :root:not([data-theme]) .notes-search input,
+  :root:not([data-theme]) .empty-notes-message h2,
+  :root:not([data-theme]) .note-title-input,
+  :root:not([data-theme]) .note-content-input,
+  :root:not([data-theme]) .note-content-input h2,
+  :root:not([data-theme]) .format-toolbar button,
+  :root:not([data-theme]) .brightness-control {
     color: #f8fafc;
   }
 
-  .note-card:hover,
-  .create-note-button:hover,
-  .back-button:hover,
-  .rename-note-button:hover,
-  .format-toolbar button:hover {
+  :root:not([data-theme]) .note-card:hover,
+  :root:not([data-theme]) .note-card.pinned,
+  :root:not([data-theme]) .create-note-button:hover,
+  :root:not([data-theme]) .settings-button:hover,
+  :root:not([data-theme]) .back-button:hover,
+  :root:not([data-theme]) .rename-note-button:hover,
+  :root:not([data-theme]) .format-toolbar button:hover,
+  :root:not([data-theme]) .theme-option:hover,
+  :root:not([data-theme]) .theme-option.selected {
     background: #172554;
   }
+
+  :root:not([data-theme]) .settings-card p {
+    color: #cbd5e1;
+  }
+
+  :root:not([data-theme]) .note-card.pinned .pin-note-button {
+    color: #ffffff;
+    background: #2563eb;
+  }
+}
+
+:root[data-theme="dark"] .notes-board,
+:root[data-theme="dark"] .notes-title-card,
+:root[data-theme="dark"] .settings-board,
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .notes-search input,
+:root[data-theme="dark"] .notes-grid,
+:root[data-theme="dark"] .note-card,
+:root[data-theme="dark"] .pin-note-button,
+:root[data-theme="dark"] .create-note-button,
+:root[data-theme="dark"] .format-toolbar,
+:root[data-theme="dark"] .note-title-input,
+:root[data-theme="dark"] .note-content-input,
+:root[data-theme="dark"] .back-button,
+:root[data-theme="dark"] .rename-note-button,
+:root[data-theme="dark"] .settings-button,
+:root[data-theme="dark"] .theme-option {
+  border-color: #e5e7eb;
+  color: #f8fafc;
+  background: #1f2937;
+}
+
+:root[data-theme="dark"] .notes-title-card h1,
+:root[data-theme="dark"] .settings-header h1,
+:root[data-theme="dark"] .notes-search,
+:root[data-theme="dark"] .notes-search input,
+:root[data-theme="dark"] .empty-notes-message h2,
+:root[data-theme="dark"] .note-title-input,
+:root[data-theme="dark"] .note-content-input,
+:root[data-theme="dark"] .note-content-input h2,
+:root[data-theme="dark"] .format-toolbar button,
+:root[data-theme="dark"] .brightness-control {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .note-card:hover,
+:root[data-theme="dark"] .note-card.pinned,
+:root[data-theme="dark"] .create-note-button:hover,
+:root[data-theme="dark"] .settings-button:hover,
+:root[data-theme="dark"] .back-button:hover,
+:root[data-theme="dark"] .rename-note-button:hover,
+:root[data-theme="dark"] .format-toolbar button:hover,
+:root[data-theme="dark"] .theme-option:hover,
+:root[data-theme="dark"] .theme-option.selected {
+  background: #172554;
+}
+
+:root[data-theme="dark"] .settings-card p {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .note-card.pinned .pin-note-button {
+  color: #ffffff;
+  background: #2563eb;
 }

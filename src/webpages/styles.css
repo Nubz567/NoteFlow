@@ -2,6 +2,7 @@
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   font-weight: 400;
+  --app-brightness: 100%;
   color: #172033;
   background-color: #eef2f7;
   font-synthesis: none;
@@ -19,6 +20,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  filter: brightness(var(--app-brightness));
 }
 
 button {
@@ -26,8 +28,18 @@ button {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     color: #e5e7eb;
     background-color: #111827;
   }
+}
+
+:root[data-theme="light"] {
+  color: #172033;
+  background-color: #eef2f7;
+}
+
+:root[data-theme="dark"] {
+  color: #e5e7eb;
+  background-color: #111827;
 }
