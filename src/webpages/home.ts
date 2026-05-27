@@ -6,26 +6,43 @@ type Note = {
   content: string;
   createdAt: Date;
   pinned: boolean;
+  order: number;
+  notebookId: string | null;
+};
+
+type Notebook = {
+  id: string;
+  name: string;
+  createdAt: Date;
 };
 
 type Page = "notes" | "edit" | "settings";
 type StoredNote = Omit<Note, "createdAt"> & {
   createdAt: string;
 };
+type StoredNotebook = Omit<Notebook, "createdAt"> & {
+  createdAt: string;
+};
 type ThemeMode = "light" | "dark";
+type SortMode = "custom" | "date" | "title" | "random";
 type AppSettings = {
   theme: ThemeMode;
   brightness: number;
+  sortMode: SortMode;
 };
 
 const NOTES_STORAGE_KEY = "noteflow.notes";
+const NOTEBOOKS_STORAGE_KEY = "noteflow.notebooks";
 const SETTINGS_STORAGE_KEY = "noteflow.settings";
 
 const notes: Note[] = loadSavedNotes();
+const notebooks: Notebook[] = loadSavedNotebooks();
 let appSettings: AppSettings = loadSavedSettings();
 let selectedNoteId: string | null = null;
 let currentPage: Page = "notes";
 let searchQuery = "";
+let draggedNoteId: string | null = null;
+let dragMoved = false;
 
 export function renderHomePage() {
   const app = document.querySelector<HTMLDivElement>("#app");
@@ -63,24 +80,54 @@ function renderNotesPage() {
           <h1>Your notes</h1>
         </header>
 
-        <label class="notes-search">
-          <span>Search notes</span>
-          <input
-            type="search"
-            data-search-notes
-            value="${escapeHtml(searchQuery)}"
-            placeholder="Search by title or text..."
-            aria-label="Search notes"
-          />
-        </label>
+        <div class="notes-controls">
+          <label class="notes-search">
+            <span>Search notes</span>
+            <input
+              type="search"
+              data-search-notes
+              value="${escapeHtml(searchQuery)}"
+              placeholder="Search by title or text..."
+              aria-label="Search notes"
+            />
+          </label>
 
-        <div class="notes-grid" aria-label="Notes">
-          ${renderNoteCards()}
+          <label class="notes-sort">
+            <span>Sort notes</span>
+            <select data-sort-notes aria-label="Sort notes">
+              <option value="custom" ${getSelectedAttribute(appSettings.sortMode === "custom")}>Custom order</option>
+              <option value="date" ${getSelectedAttribute(appSettings.sortMode === "date")}>Date</option>
+              <option value="title" ${getSelectedAttribute(appSettings.sortMode === "title")}>Title</option>
+              <option value="random" ${getSelectedAttribute(appSettings.sortMode === "random")}>Random</option>
+            </select>
+          </label>
         </div>
 
-        <button class="create-note-button" type="button" data-create-note>
-          Create new note
-        </button>
+        <div class="organization-layout">
+          <section class="organization-panel notes-panel" aria-label="Notes">
+            <header class="organization-panel-header">
+              <h2>Notes</h2>
+            </header>
+            <div class="notes-grid" aria-label="Unfiled notes" data-notebook-drop-id="">
+              ${renderNoteCards()}
+            </div>
+            <button class="create-note-button" type="button" data-create-note>
+              Create new note
+            </button>
+          </section>
+
+          <section class="organization-panel notebooks-section" aria-label="Notebooks">
+            <header class="organization-panel-header">
+              <h2>Notebooks</h2>
+            </header>
+            <div class="notebooks-grid">
+              ${renderNotebooks()}
+            </div>
+            <button class="create-notebook-button" type="button" data-create-notebook>
+              Create notebook
+            </button>
+          </section>
+        </div>
       </section>
     </main>
   `;
@@ -192,9 +239,6 @@ function renderEditPage() {
           <button class="rename-note-button" type="button" data-rename-note>
             Rename
           </button>
-          <button class="delete-note-button" type="button" data-delete-note>
-            Delete
-          </button>
         </div>
 
         <div
@@ -221,7 +265,7 @@ function renderNoteCards() {
     `;
   }
 
-  const matchingNotes = getMatchingNotes();
+  const matchingNotes = getMatchingNotes().filter((note) => note.notebookId === null);
 
   if (matchingNotes.length === 0) {
     return `
@@ -232,12 +276,45 @@ function renderNoteCards() {
     `;
   }
 
-  return matchingNotes
+  return renderNoteCardsForList(matchingNotes);
+}
+
+function renderNotebooks() {
+  if (notebooks.length === 0) {
+    return `<p class="empty-notebooks-message">Create a notebook, then drag notes into it.</p>`;
+  }
+
+  return notebooks
+    .map((notebook) => {
+      const notebookNotes = getMatchingNotes().filter((note) => note.notebookId === notebook.id);
+
+      return `
+        <article class="notebook-card" data-notebook-drop-id="${notebook.id}">
+          <div class="notebook-card-header">
+            <h3>${escapeHtml(notebook.name)}</h3>
+            <span>${notebookNotes.length} notes</span>
+          </div>
+          <div class="notebook-notes">
+            ${
+              notebookNotes.length > 0
+                ? renderNoteCardsForList(notebookNotes)
+                : `<p class="empty-notebook-message">Drop notes here</p>`
+            }
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderNoteCardsForList(notesToRender: Note[]) {
+  return notesToRender
     .map(
       (note, index) => `
         <article
           class="note-card note-card-${(index % 6) + 1} ${note.pinned ? "pinned" : ""}"
           data-note-id="${note.id}"
+          data-drag-note-id="${note.id}"
           role="button"
           tabindex="0"
         >
@@ -249,10 +326,20 @@ function renderNoteCards() {
           <button
             class="pin-note-button"
             type="button"
+            draggable="false"
             data-pin-note-id="${note.id}"
             aria-label="${note.pinned ? "Unpin" : "Pin"} ${escapeHtml(note.title)}"
           >
             ${note.pinned ? "Pinned" : "Pin"}
+          </button>
+          <button
+            class="delete-note-button note-card-delete-button"
+            type="button"
+            draggable="false"
+            data-delete-note-id="${note.id}"
+            aria-label="Delete ${escapeHtml(note.title)}"
+          >
+            Delete
           </button>
         </article>
       `,
@@ -262,6 +349,7 @@ function renderNoteCards() {
 
 function bindHomePageEvents(app: HTMLDivElement) {
   app.querySelector("[data-create-note]")?.addEventListener("click", createNote);
+  app.querySelector("[data-create-notebook]")?.addEventListener("click", createNotebook);
 
   app.querySelector("[data-open-settings]")?.addEventListener("click", () => {
     currentPage = "settings";
@@ -289,12 +377,22 @@ function bindHomePageEvents(app: HTMLDivElement) {
     const input = event.target as HTMLInputElement;
 
     searchQuery = input.value;
-    renderNoteCardsOnly(app);
+    renderNotesCollectionsOnly(app);
+  });
+
+  app.querySelector<HTMLSelectElement>("[data-sort-notes]")?.addEventListener("change", (event) => {
+    const select = event.target as HTMLSelectElement;
+
+    appSettings.sortMode = parseSortMode(select.value);
+    saveSettings();
+    renderNotesCollectionsOnly(app);
   });
 
   bindNoteOpenEvents(app);
 
   bindPinNoteEvents(app);
+  bindDeleteNoteEvents(app);
+  bindDragNoteEvents(app);
 
   app.querySelector("[data-back-to-notes]")?.addEventListener("click", () => {
     currentPage = "notes";
@@ -316,10 +414,6 @@ function bindHomePageEvents(app: HTMLDivElement) {
 
   app.querySelector("[data-rename-note]")?.addEventListener("click", () => {
     renameSelectedNote(selectedNote);
-  });
-
-  app.querySelector("[data-delete-note]")?.addEventListener("click", () => {
-    deleteSelectedNote(selectedNote);
   });
 
   app.querySelectorAll<HTMLButtonElement>("[data-format]").forEach((button) => {
@@ -344,12 +438,30 @@ function createNote() {
     content: "",
     createdAt: new Date(),
     pinned: false,
+    order: getNextNoteOrder(),
+    notebookId: null,
   };
 
   notes.push(note);
   saveNotes();
   selectedNoteId = note.id;
   currentPage = "edit";
+  renderHomePage();
+}
+
+function createNotebook() {
+  const name = window.prompt("Notebook name", `Notebook ${notebooks.length + 1}`)?.trim();
+
+  if (!name) {
+    return;
+  }
+
+  notebooks.push({
+    id: crypto.randomUUID(),
+    name,
+    createdAt: new Date(),
+  });
+  saveNotebooks();
   renderHomePage();
 }
 
@@ -373,23 +485,32 @@ function getMatchingNotes() {
   return getSortedNotes(matchingNotes);
 }
 
-function renderNoteCardsOnly(app: HTMLDivElement) {
+function renderNotesCollectionsOnly(app: HTMLDivElement) {
   const notesGrid = app.querySelector<HTMLDivElement>(".notes-grid");
+  const notebooksGrid = app.querySelector<HTMLDivElement>(".notebooks-grid");
 
-  if (!notesGrid) {
-    return;
+  if (notesGrid) {
+    notesGrid.innerHTML = renderNoteCards();
   }
 
-  notesGrid.innerHTML = renderNoteCards();
+  if (notebooksGrid) {
+    notebooksGrid.innerHTML = renderNotebooks();
+  }
 
   bindNoteOpenEvents(app);
   bindPinNoteEvents(app);
+  bindDeleteNoteEvents(app);
+  bindDragNoteEvents(app);
 }
 
 function bindNoteOpenEvents(app: HTMLDivElement) {
   app.querySelectorAll<HTMLElement>("[data-note-id]").forEach((card) => {
     card.addEventListener("click", (event) => {
-      if ((event.target as HTMLElement).closest("[data-pin-note-id]")) {
+      if (dragMoved) {
+        return;
+      }
+
+      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id]")) {
         return;
       }
 
@@ -405,6 +526,134 @@ function bindNoteOpenEvents(app: HTMLDivElement) {
       openNote(card.dataset.noteId ?? null);
     });
   });
+}
+
+function bindDragNoteEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLElement>("[data-drag-note-id]").forEach((card) => {
+    card.addEventListener("pointerdown", (event) => {
+      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id]")) {
+        return;
+      }
+
+      draggedNoteId = card.dataset.dragNoteId ?? null;
+
+      if (!draggedNoteId) {
+        return;
+      }
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const distanceX = Math.abs(moveEvent.clientX - startX);
+        const distanceY = Math.abs(moveEvent.clientY - startY);
+
+        if (!dragMoved && distanceX + distanceY > 6) {
+          dragMoved = true;
+          card.classList.add("dragging");
+        }
+
+        if (dragMoved) {
+          moveEvent.preventDefault();
+          markPointerDropTarget(app, moveEvent.clientX, moveEvent.clientY);
+        }
+      };
+
+      const handlePointerUp = (upEvent: PointerEvent) => {
+        document.removeEventListener("pointermove", handlePointerMove);
+        document.removeEventListener("pointerup", handlePointerUp);
+        card.classList.remove("dragging");
+
+        if (dragMoved) {
+          dropPointerDraggedNote(app, upEvent.clientX, upEvent.clientY);
+        }
+
+        clearDropTargets(app);
+        draggedNoteId = null;
+        setTimeout(() => {
+          dragMoved = false;
+        }, 0);
+      };
+
+      document.addEventListener("pointermove", handlePointerMove);
+      document.addEventListener("pointerup", handlePointerUp, { once: true });
+    });
+  });
+}
+
+function markPointerDropTarget(app: HTMLDivElement, clientX: number, clientY: number) {
+  clearDropTargets(app);
+
+  const target = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+  const targetCard = target?.closest<HTMLElement>("[data-drag-note-id]");
+  const targetNotebook = target?.closest<HTMLElement>("[data-notebook-drop-id]");
+
+  if (targetCard && targetCard.dataset.dragNoteId !== draggedNoteId) {
+    targetCard.classList.add("drop-target");
+    return;
+  }
+
+  targetNotebook?.classList.add("drop-target");
+}
+
+function dropPointerDraggedNote(app: HTMLDivElement, clientX: number, clientY: number) {
+  const target = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+  const targetCard = target?.closest<HTMLElement>("[data-drag-note-id]");
+  const targetNotebook = target?.closest<HTMLElement>("[data-notebook-drop-id]");
+
+  if (targetCard && targetCard.dataset.dragNoteId !== draggedNoteId) {
+    reorderNote(draggedNoteId, targetCard.dataset.dragNoteId ?? null);
+    renderNotesCollectionsOnly(app);
+    return;
+  }
+
+  if (targetNotebook) {
+    moveNoteToNotebook(draggedNoteId, targetNotebook.dataset.notebookDropId || null);
+    renderNotesCollectionsOnly(app);
+  }
+}
+
+function reorderNote(sourceNoteId: string | null, targetNoteId: string | null) {
+  if (!sourceNoteId || !targetNoteId || sourceNoteId === targetNoteId) {
+    return;
+  }
+
+  const sortedNotes = getSortedNotes(notes);
+  const sourceIndex = sortedNotes.findIndex((note) => note.id === sourceNoteId);
+  const targetIndex = sortedNotes.findIndex((note) => note.id === targetNoteId);
+
+  if (sourceIndex === -1 || targetIndex === -1) {
+    return;
+  }
+
+  const [movedNote] = sortedNotes.splice(sourceIndex, 1);
+  movedNote.notebookId = sortedNotes[targetIndex]?.notebookId ?? null;
+  sortedNotes.splice(targetIndex, 0, movedNote);
+
+  sortedNotes.forEach((note, index) => {
+    note.order = index;
+  });
+
+  appSettings.sortMode = "custom";
+  saveSettings();
+  saveNotes();
+}
+
+function clearDropTargets(app: HTMLDivElement) {
+  app.querySelectorAll(".drop-target").forEach((target) => {
+    target.classList.remove("drop-target");
+  });
+}
+
+function moveNoteToNotebook(noteId: string | null, notebookId: string | null) {
+  const note = notes.find((item) => item.id === noteId);
+
+  if (!note) {
+    return;
+  }
+
+  note.notebookId = notebookId;
+  saveNotes();
 }
 
 function openNote(noteId: string | null) {
@@ -424,7 +673,21 @@ function bindPinNoteEvents(app: HTMLDivElement) {
 
       note.pinned = !note.pinned;
       saveNotes();
-      renderNoteCardsOnly(app);
+      renderNotesCollectionsOnly(app);
+    });
+  });
+}
+
+function bindDeleteNoteEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLButtonElement>("[data-delete-note-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const note = notes.find((item) => item.id === button.dataset.deleteNoteId);
+
+      if (!note) {
+        return;
+      }
+
+      deleteSelectedNote(note);
     });
   });
 }
@@ -435,7 +698,19 @@ function getSortedNotes(notesToSort: Note[]) {
       return first.pinned ? -1 : 1;
     }
 
-    return first.createdAt.getTime() - second.createdAt.getTime();
+    if (appSettings.sortMode === "date") {
+      return second.createdAt.getTime() - first.createdAt.getTime();
+    }
+
+    if (appSettings.sortMode === "title") {
+      return first.title.localeCompare(second.title);
+    }
+
+    if (appSettings.sortMode === "random") {
+      return getStableRandomValue(first.id) - getStableRandomValue(second.id);
+    }
+
+    return first.order - second.order;
   });
 }
 
@@ -514,14 +789,52 @@ function loadSavedNotes() {
   try {
     const parsedNotes = JSON.parse(savedNotes) as StoredNote[];
 
-    return parsedNotes.map((note) => ({
+    return parsedNotes.map((note, index) => ({
       ...note,
       createdAt: new Date(note.createdAt),
       pinned: Boolean(note.pinned),
+      order: typeof note.order === "number" ? note.order : index,
+      notebookId: typeof note.notebookId === "string" ? note.notebookId : null,
     }));
   } catch {
     return [];
   }
+}
+
+function loadSavedNotebooks() {
+  const savedNotebooks = localStorage.getItem(NOTEBOOKS_STORAGE_KEY);
+
+  if (!savedNotebooks) {
+    return [];
+  }
+
+  try {
+    const parsedNotebooks = JSON.parse(savedNotebooks) as StoredNotebook[];
+
+    return parsedNotebooks.map((notebook) => ({
+      ...notebook,
+      createdAt: new Date(notebook.createdAt),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function saveNotebooks() {
+  const notebooksToStore: StoredNotebook[] = notebooks.map((notebook) => ({
+    ...notebook,
+    createdAt: notebook.createdAt.toISOString(),
+  }));
+
+  localStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(notebooksToStore));
+}
+
+function getNextNoteOrder() {
+  if (notes.length === 0) {
+    return 0;
+  }
+
+  return Math.max(...notes.map((note) => note.order)) + 1;
 }
 
 function saveNotes() {
@@ -540,6 +853,7 @@ function loadSavedSettings(): AppSettings {
     return {
       theme: "light",
       brightness: 100,
+      sortMode: "custom",
     };
   }
 
@@ -549,11 +863,13 @@ function loadSavedSettings(): AppSettings {
     return {
       theme: parsedSettings.theme === "dark" ? "dark" : "light",
       brightness: clampBrightness(parsedSettings.brightness ?? 100),
+      sortMode: parseSortMode(parsedSettings.sortMode),
     };
   } catch {
     return {
       theme: "light",
       brightness: 100,
+      sortMode: "custom",
     };
   }
 }
@@ -577,6 +893,24 @@ function renderSettingsValues(app: HTMLDivElement) {
 
 function clampBrightness(value: number) {
   return Math.min(130, Math.max(50, value));
+}
+
+function parseSortMode(value: unknown): SortMode {
+  if (value === "date" || value === "title" || value === "random") {
+    return value;
+  }
+
+  return "custom";
+}
+
+function getSelectedAttribute(isSelected: boolean) {
+  return isSelected ? "selected" : "";
+}
+
+function getStableRandomValue(value: string) {
+  return [...value].reduce((hash, character) => {
+    return (hash * 31 + character.charCodeAt(0)) % 100000;
+  }, 7);
 }
 
 function escapeHtml(value: string) {

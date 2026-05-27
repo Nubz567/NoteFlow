@@ -13,7 +13,7 @@
 
 .notes-board {
   position: relative;
-  width: min(1040px, 100%);
+  width: min(1120px, 100%);
   min-height: 620px;
   display: flex;
   flex-direction: column;
@@ -59,9 +59,17 @@
   letter-spacing: -0.06em;
 }
 
-.notes-search {
+.notes-controls {
   align-self: center;
-  width: min(560px, 100%);
+  width: min(760px, 100%);
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 16px;
+}
+
+.notes-search,
+.notes-sort {
+  width: 100%;
   display: grid;
   gap: 8px;
   color: #020617;
@@ -69,7 +77,8 @@
   text-transform: uppercase;
 }
 
-.notes-search input {
+.notes-search input,
+.notes-sort select {
   width: 100%;
   border: 4px solid #0f172a;
   border-radius: 22px;
@@ -81,24 +90,120 @@
   outline: none;
 }
 
-.notes-search input:focus {
+.notes-search input:focus,
+.notes-sort select:focus {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+}
+
+.organization-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
+  gap: 48px;
+  padding: 0 24px 8px;
+}
+
+.organization-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 500px;
+  overflow: hidden;
+  border: 4px solid #0f172a;
+  border-radius: 52px;
+  background: #ffffff;
+}
+
+.organization-panel-header {
+  display: grid;
+  place-items: center;
+  min-height: 72px;
+  border-bottom: 4px solid #0f172a;
+}
+
+.organization-panel-header h2 {
+  margin: 0;
+  color: #020617;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.notebooks-grid {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  padding: 24px;
+  overflow: auto;
+}
+
+.notebook-card {
+  display: grid;
+  gap: 14px;
+  min-height: 180px;
+  border: 4px solid #0f172a;
+  border-radius: 28px;
+  padding: 18px;
+  background: #f8fafc;
+}
+
+.notebook-card.drop-target,
+.notes-grid.drop-target {
+  outline: 4px dashed #2563eb;
+  outline-offset: 6px;
+  background: #eff6ff;
+}
+
+.notebook-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notebook-card-header h3 {
+  margin: 0;
+  color: #020617;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.notebook-card-header span,
+.empty-notebooks-message,
+.empty-notebook-message {
+  margin: 0;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.notebook-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.notebook-notes .note-card {
+  min-height: 70px;
+  font-size: 1rem;
 }
 
 .notes-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(5, minmax(110px, 1fr));
-  align-content: center;
-  gap: 32px;
-  padding: 40px 36px;
-  border: 4px solid #0f172a;
-  border-radius: 64px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 18px;
+  padding: 24px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
 }
 
 .note-card {
   position: relative;
-  cursor: pointer;
+  cursor: grab;
+  user-select: none;
   display: grid;
   gap: 10px;
   min-height: 78px;
@@ -121,11 +226,22 @@
   transform: translateY(-2px);
 }
 
+.note-card.dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+
+.note-card.drop-target {
+  outline: 4px dashed #2563eb;
+  outline-offset: 6px;
+}
+
 .note-card.pinned {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
 }
 
 .note-open-button {
+  cursor: pointer;
   min-height: 36px;
   color: inherit;
   text-align: left;
@@ -137,7 +253,8 @@
   text-overflow: ellipsis;
 }
 
-.pin-note-button {
+.pin-note-button,
+.note-card-delete-button {
   cursor: pointer;
   justify-self: start;
   border: 2px solid #0f172a;
@@ -151,6 +268,15 @@
 
 .pin-note-button:hover {
   background: #dbeafe;
+}
+
+.note-card-delete-button {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.note-card-delete-button:hover {
+  background: #fef2f2;
 }
 
 .note-card.pinned .pin-note-button {
@@ -188,7 +314,8 @@
 .create-note-button {
   cursor: pointer;
   align-self: center;
-  min-width: 360px;
+  width: calc(100% - 48px);
+  margin: 0 24px 24px;
   border: 4px solid #0f172a;
   border-radius: 22px;
   padding: 18px 28px;
@@ -205,6 +332,25 @@
 .create-note-button:hover {
   background: #dcfce7;
   transform: translateY(-2px);
+}
+
+.create-notebook-button {
+  cursor: pointer;
+  align-self: center;
+  width: calc(100% - 48px);
+  margin: 0 24px 24px;
+  border: 4px solid #0f172a;
+  border-radius: 22px;
+  padding: 18px 28px;
+  color: #020617;
+  background: #ffffff;
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.create-notebook-button:hover {
+  background: #eff6ff;
 }
 
 .edit-page {
@@ -439,14 +585,28 @@
   }
 
   .notes-grid {
-    grid-template-columns: repeat(2, minmax(120px, 1fr));
-    border-radius: 36px;
+    grid-template-columns: 1fr;
     padding: 28px;
   }
 
   .create-note-button {
     min-width: 0;
-    width: 100%;
+    width: calc(100% - 48px);
+  }
+
+  .notes-controls,
+  .organization-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-layout {
+    gap: 28px;
+    padding: 0;
+  }
+
+  .organization-panel {
+    min-height: 420px;
+    border-radius: 36px;
   }
 
   .settings-button {
@@ -460,6 +620,11 @@
   }
 
   .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notebooks-grid,
+  .notebook-notes {
     grid-template-columns: 1fr;
   }
 
@@ -487,10 +652,15 @@
   :root:not([data-theme]) .notes-title-card,
   :root:not([data-theme]) .settings-board,
   :root:not([data-theme]) .settings-card,
+  :root:not([data-theme]) .organization-panel,
+  :root:not([data-theme]) .organization-panel-header,
   :root:not([data-theme]) .notes-search input,
+  :root:not([data-theme]) .notes-sort select,
+  :root:not([data-theme]) .notebook-card,
   :root:not([data-theme]) .notes-grid,
   :root:not([data-theme]) .note-card,
   :root:not([data-theme]) .pin-note-button,
+  :root:not([data-theme]) .note-card-delete-button,
   :root:not([data-theme]) .create-note-button,
   :root:not([data-theme]) .format-toolbar,
   :root:not([data-theme]) .note-title-input,
@@ -498,6 +668,7 @@
   :root:not([data-theme]) .back-button,
   :root:not([data-theme]) .rename-note-button,
   :root:not([data-theme]) .settings-button,
+  :root:not([data-theme]) .create-notebook-button,
   :root:not([data-theme]) .theme-option {
     border-color: #e5e7eb;
     color: #f8fafc;
@@ -508,6 +679,10 @@
   :root:not([data-theme]) .settings-header h1,
   :root:not([data-theme]) .notes-search,
   :root:not([data-theme]) .notes-search input,
+  :root:not([data-theme]) .notes-sort,
+  :root:not([data-theme]) .notes-sort select,
+  :root:not([data-theme]) .organization-panel-header h2,
+  :root:not([data-theme]) .notebook-card-header h3,
   :root:not([data-theme]) .empty-notes-message h2,
   :root:not([data-theme]) .note-title-input,
   :root:not([data-theme]) .note-content-input,
@@ -520,6 +695,7 @@
   :root:not([data-theme]) .note-card:hover,
   :root:not([data-theme]) .note-card.pinned,
   :root:not([data-theme]) .create-note-button:hover,
+  :root:not([data-theme]) .create-notebook-button:hover,
   :root:not([data-theme]) .settings-button:hover,
   :root:not([data-theme]) .back-button:hover,
   :root:not([data-theme]) .rename-note-button:hover,
@@ -533,6 +709,12 @@
     color: #cbd5e1;
   }
 
+  :root:not([data-theme]) .notebook-card-header span,
+  :root:not([data-theme]) .empty-notebooks-message,
+  :root:not([data-theme]) .empty-notebook-message {
+    color: #cbd5e1;
+  }
+
   :root:not([data-theme]) .note-card.pinned .pin-note-button {
     color: #ffffff;
     background: #2563eb;
@@ -543,10 +725,15 @@
 :root[data-theme="dark"] .notes-title-card,
 :root[data-theme="dark"] .settings-board,
 :root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .organization-panel,
+:root[data-theme="dark"] .organization-panel-header,
 :root[data-theme="dark"] .notes-search input,
+:root[data-theme="dark"] .notes-sort select,
+:root[data-theme="dark"] .notebook-card,
 :root[data-theme="dark"] .notes-grid,
 :root[data-theme="dark"] .note-card,
 :root[data-theme="dark"] .pin-note-button,
+:root[data-theme="dark"] .note-card-delete-button,
 :root[data-theme="dark"] .create-note-button,
 :root[data-theme="dark"] .format-toolbar,
 :root[data-theme="dark"] .note-title-input,
@@ -554,6 +741,7 @@
 :root[data-theme="dark"] .back-button,
 :root[data-theme="dark"] .rename-note-button,
 :root[data-theme="dark"] .settings-button,
+:root[data-theme="dark"] .create-notebook-button,
 :root[data-theme="dark"] .theme-option {
   border-color: #e5e7eb;
   color: #f8fafc;
@@ -564,6 +752,10 @@
 :root[data-theme="dark"] .settings-header h1,
 :root[data-theme="dark"] .notes-search,
 :root[data-theme="dark"] .notes-search input,
+:root[data-theme="dark"] .notes-sort,
+:root[data-theme="dark"] .notes-sort select,
+:root[data-theme="dark"] .organization-panel-header h2,
+:root[data-theme="dark"] .notebook-card-header h3,
 :root[data-theme="dark"] .empty-notes-message h2,
 :root[data-theme="dark"] .note-title-input,
 :root[data-theme="dark"] .note-content-input,
@@ -576,6 +768,7 @@
 :root[data-theme="dark"] .note-card:hover,
 :root[data-theme="dark"] .note-card.pinned,
 :root[data-theme="dark"] .create-note-button:hover,
+:root[data-theme="dark"] .create-notebook-button:hover,
 :root[data-theme="dark"] .settings-button:hover,
 :root[data-theme="dark"] .back-button:hover,
 :root[data-theme="dark"] .rename-note-button:hover,
@@ -586,6 +779,12 @@
 }
 
 :root[data-theme="dark"] .settings-card p {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .notebook-card-header span,
+:root[data-theme="dark"] .empty-notebooks-message,
+:root[data-theme="dark"] .empty-notebook-message {
   color: #cbd5e1;
 }
 
