@@ -1,14 +1,117 @@
 .notes-page,
 .edit-page,
-.settings-page {
+.settings-page,
+.auth-page {
   min-height: 100vh;
   padding: 28px;
 }
 
 .notes-page,
-.settings-page {
+.settings-page,
+.auth-page {
   display: grid;
   place-items: center;
+}
+
+.auth-card {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  border: 4px solid #0f172a;
+  border-radius: 48px;
+  padding: 32px;
+  color: #020617;
+  background: #ffffff;
+}
+
+.auth-heading {
+  text-align: center;
+}
+
+.auth-heading p {
+  margin: 0 0 6px;
+  color: #475569;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.auth-heading h1 {
+  margin: 0;
+  font-size: clamp(3rem, 10vw, 5rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form h2 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.auth-description {
+  margin: 0;
+  color: #475569;
+  font-weight: 800;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 900;
+}
+
+.auth-form input {
+  width: 100%;
+  border: 4px solid #0f172a;
+  border-radius: 22px;
+  padding: 14px 18px;
+  color: #020617;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  outline: none;
+}
+
+.auth-form input:focus {
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+}
+
+.auth-message {
+  margin: 0;
+  border: 3px solid #dc2626;
+  border-radius: 18px;
+  padding: 10px 12px;
+  color: #991b1b;
+  background: #fef2f2;
+  font-weight: 900;
+}
+
+.auth-submit-button,
+.auth-switch-button {
+  cursor: pointer;
+  border: 3px solid #0f172a;
+  border-radius: 999px;
+  padding: 12px 16px;
+  color: #020617;
+  background: #ffffff;
+  font-weight: 900;
+}
+
+.auth-submit-button {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.auth-submit-button:hover,
+.auth-switch-button:hover {
+  background: #172554;
+  color: #ffffff;
 }
 
 .notes-board {
@@ -17,54 +120,82 @@
   min-height: 620px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 28px;
-  border: 4px solid #0f172a;
-  border-radius: 72px;
-  background: #ffffff;
+  gap: 22px;
+  padding: 26px;
+  border: 3px solid #0f172a;
+  border-radius: 40px;
+  background:
+    radial-gradient(circle at 85% 15%, rgba(59, 130, 246, 0.16), transparent 36%),
+    radial-gradient(circle at 8% 92%, rgba(14, 165, 233, 0.12), transparent 35%),
+    #ffffff;
+  box-shadow:
+    0 18px 44px rgba(2, 6, 23, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.settings-button,
+.sign-out-button {
+  cursor: pointer;
+  position: absolute;
+  top: 24px;
+  border: 2px solid #0f172a;
+  border-radius: 999px;
+  padding: 9px 14px;
+  color: #020617;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(3px);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .settings-button {
-  cursor: pointer;
-  position: absolute;
-  top: 28px;
-  right: 28px;
-  border: 3px solid #0f172a;
-  border-radius: 999px;
-  padding: 10px 16px;
-  color: #020617;
-  background: #ffffff;
-  font-weight: 900;
+  right: 24px;
 }
 
-.settings-button:hover {
-  background: #eff6ff;
+.sign-out-button {
+  left: 24px;
+}
+
+.settings-button:hover,
+.sign-out-button:hover {
+  background: #dbeafe;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2);
 }
 
 .notes-title-card {
   align-self: center;
   width: min(720px, 100%);
-  padding: 12px 24px;
-  border: 4px solid #0f172a;
-  border-radius: 28px;
+  padding: 16px 24px;
+  border: 3px solid #0f172a;
+  border-radius: 24px;
   text-align: center;
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .notes-title-card h1 {
   margin: 0;
   color: #020617;
-  font-size: clamp(2.5rem, 7vw, 4.8rem);
+  font-size: clamp(2.25rem, 6.2vw, 4rem);
   font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.06em;
+  line-height: 0.98;
+  letter-spacing: -0.03em;
 }
 
 .notes-controls {
   align-self: center;
-  width: min(760px, 100%);
+  width: min(860px, 100%);
   display: grid;
-  grid-template-columns: 1fr 220px;
+  grid-template-columns: 1fr 240px;
   gap: 16px;
+  padding: 14px;
+  border: 2px solid rgba(15, 23, 42, 0.18);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .notes-search,
@@ -80,9 +211,9 @@
 .notes-search input,
 .notes-sort select {
   width: 100%;
-  border: 4px solid #0f172a;
-  border-radius: 22px;
-  padding: 14px 18px;
+  border: 2px solid #0f172a;
+  border-radius: 16px;
+  padding: 12px 14px;
   color: #020617;
   background: #ffffff;
   font: inherit;
@@ -99,8 +230,8 @@
   flex: 1;
   display: grid;
   grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
-  gap: 48px;
-  padding: 0 24px 8px;
+  gap: 20px;
+  padding: 0;
 }
 
 .organization-panel {
@@ -108,24 +239,28 @@
   flex-direction: column;
   min-height: 500px;
   overflow: hidden;
-  border: 4px solid #0f172a;
-  border-radius: 52px;
-  background: #ffffff;
+  border: 2px solid rgba(15, 23, 42, 0.28);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .organization-panel-header {
   display: grid;
   place-items: center;
-  min-height: 72px;
-  border-bottom: 4px solid #0f172a;
+  min-height: 62px;
+  border-bottom: 2px solid rgba(15, 23, 42, 0.2);
+  background: rgba(241, 245, 249, 0.75);
 }
 
 .organization-panel-header h2 {
   margin: 0;
   color: #020617;
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-size: clamp(1.4rem, 3.2vw, 2rem);
   font-weight: 900;
   line-height: 1;
+  letter-spacing: -0.01em;
 }
 
 .notebooks-grid {
@@ -133,19 +268,49 @@
   display: grid;
   align-content: start;
   grid-template-columns: 1fr;
-  gap: 18px;
-  padding: 24px;
+  gap: 14px;
+  padding: 18px;
   overflow: auto;
 }
 
 .notebook-card {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   min-height: 180px;
-  border: 4px solid #0f172a;
-  border-radius: 28px;
-  padding: 18px;
+  border: 2px solid rgba(15, 23, 42, 0.24);
+  border-radius: 18px;
+  padding: 14px;
   background: #f8fafc;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.notebook-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 16px rgba(15, 23, 42, 0.1);
+}
+
+.nested-notebooks {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+  padding-left: 18px;
+  border-left: 4px solid rgba(15, 23, 42, 0.18);
+}
+
+.nested-notebook-depth-1,
+.nested-notebook-depth-2,
+.nested-notebook-depth-3 {
+  min-height: 140px;
+  border-width: 3px;
+  border-radius: 22px;
+  padding: 14px;
+}
+
+.nested-notebook-depth-2,
+.nested-notebook-depth-3 {
+  margin-left: 8px;
 }
 
 .notebook-card.drop-target,
@@ -248,8 +413,8 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
-  gap: 18px;
-  padding: 24px;
+  gap: 14px;
+  padding: 18px;
   overflow: auto;
   border: 0;
   border-radius: 0;
@@ -262,23 +427,25 @@
   display: grid;
   gap: 10px;
   min-height: 78px;
-  border: 4px solid #0f172a;
-  border-radius: 18px;
+  border: 2px solid rgba(15, 23, 42, 0.22);
+  border-radius: 14px;
   padding: 12px;
   color: #020617;
-  background: #ffffff;
-  font-size: 1.2rem;
+  background: rgba(255, 255, 255, 0.98);
+  font-size: 1.05rem;
   font-weight: 900;
   line-height: 1.1;
   transition:
-    background 0.2s ease,
-    transform 0.2s ease;
+    background 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .note-card:hover,
 .note-card.pinned {
-  background: #eff6ff;
+  background: #eaf3ff;
   transform: translateY(-2px);
+  box-shadow: 0 8px 14px rgba(37, 99, 235, 0.18);
 }
 
 .note-card.dragging {
@@ -336,15 +503,25 @@
   background: #fef2f2;
 }
 
+.create-sub-notebook-button,
 .delete-notebook-button {
   cursor: pointer;
-  border: 2px solid #dc2626;
+  border: 2px solid #0f172a;
   border-radius: 999px;
   padding: 4px 10px;
-  color: #dc2626;
+  color: #0f172a;
   background: #ffffff;
   font-size: 0.78rem;
   font-weight: 900;
+}
+
+.create-sub-notebook-button:hover {
+  background: #dbeafe;
+}
+
+.delete-notebook-button {
+  border-color: #dc2626;
+  color: #dc2626;
 }
 
 .delete-notebook-button:hover {
@@ -387,22 +564,22 @@
   cursor: pointer;
   align-self: center;
   width: calc(100% - 48px);
-  margin: 0 24px 24px;
-  border: 4px solid #0f172a;
-  border-radius: 22px;
-  padding: 18px 28px;
+  margin: 0 18px 18px;
+  border: 2px solid #0f172a;
+  border-radius: 16px;
+  padding: 14px 20px;
   color: #020617;
-  background: #ffffff;
-  font-size: 1.15rem;
+  background: rgba(255, 255, 255, 0.94);
+  font-size: 1rem;
   font-weight: 900;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   transition:
-    background 0.2s ease,
-    transform 0.2s ease;
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .create-note-button:hover {
-  background: #dcfce7;
+  background: #dbeafe;
   transform: translateY(-2px);
 }
 
@@ -410,19 +587,23 @@
   cursor: pointer;
   align-self: center;
   width: calc(100% - 48px);
-  margin: 0 24px 24px;
-  border: 4px solid #0f172a;
-  border-radius: 22px;
-  padding: 18px 28px;
+  margin: 0 18px 18px;
+  border: 2px solid #0f172a;
+  border-radius: 16px;
+  padding: 14px 20px;
   color: #020617;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.94);
   font-size: 1rem;
   font-weight: 900;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .create-notebook-button:hover {
-  background: #eff6ff;
+  background: #dbeafe;
+  transform: translateY(-2px);
 }
 
 .edit-page {
@@ -661,6 +842,10 @@
   font-weight: 900;
 }
 
+.image-upload-input {
+  display: none;
+}
+
 .note-content-input {
   flex: 1;
   min-height: 360px;
@@ -679,6 +864,17 @@
   content: attr(data-placeholder);
   color: #94a3b8;
   font-weight: 800;
+}
+
+.editor-counter {
+  align-self: flex-end;
+  border: 3px solid #0f172a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: #475569;
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 900;
 }
 
 .note-content-input h1,
@@ -733,6 +929,26 @@
   border: 2px solid #0f172a;
   padding: 10px;
   min-width: 80px;
+}
+
+.note-content-input figure {
+  margin: 0 0 18px;
+}
+
+.note-content-input img {
+  display: block;
+  max-width: 100%;
+  max-height: 520px;
+  border: 3px solid #0f172a;
+  border-radius: 24px;
+  object-fit: contain;
+}
+
+.note-content-input figcaption {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 @media (max-width: 860px) {
@@ -806,6 +1022,10 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) .notes-board,
   :root:not([data-theme]) .notes-title-card,
+  :root:not([data-theme]) .auth-card,
+  :root:not([data-theme]) .auth-form input,
+  :root:not([data-theme]) .auth-submit-button,
+  :root:not([data-theme]) .auth-switch-button,
   :root:not([data-theme]) .settings-board,
   :root:not([data-theme]) .settings-card,
   :root:not([data-theme]) .organization-panel,
@@ -817,6 +1037,7 @@
   :root:not([data-theme]) .note-card,
   :root:not([data-theme]) .pin-note-button,
   :root:not([data-theme]) .note-card-delete-button,
+  :root:not([data-theme]) .create-sub-notebook-button,
   :root:not([data-theme]) .delete-notebook-button,
   :root:not([data-theme]) .color-picker-label,
   :root:not([data-theme]) .create-note-button,
@@ -826,9 +1047,11 @@
   :root:not([data-theme]) .format-dropdown button,
   :root:not([data-theme]) .note-title-input,
   :root:not([data-theme]) .note-content-input,
+  :root:not([data-theme]) .editor-counter,
   :root:not([data-theme]) .back-button,
   :root:not([data-theme]) .rename-note-button,
   :root:not([data-theme]) .settings-button,
+  :root:not([data-theme]) .sign-out-button,
   :root:not([data-theme]) .create-notebook-button,
   :root:not([data-theme]) .theme-option {
     border-color: #e5e7eb;
@@ -837,6 +1060,11 @@
   }
 
   :root:not([data-theme]) .notes-title-card h1,
+  :root:not([data-theme]) .auth-heading h1,
+  :root:not([data-theme]) .auth-form h2,
+  :root:not([data-theme]) .auth-form label,
+  :root:not([data-theme]) .auth-form input,
+  :root:not([data-theme]) .auth-switch-button,
   :root:not([data-theme]) .settings-header h1,
   :root:not([data-theme]) .notes-search,
   :root:not([data-theme]) .notes-search input,
@@ -853,6 +1081,7 @@
   :root:not([data-theme]) .format-button,
   :root:not([data-theme]) .format-dropdown button,
   :root:not([data-theme]) .table-dropdown span,
+  :root:not([data-theme]) .editor-counter,
   :root:not([data-theme]) .brightness-control {
     color: #f8fafc;
   }
@@ -861,7 +1090,11 @@
   :root:not([data-theme]) .note-card.pinned,
   :root:not([data-theme]) .create-note-button:hover,
   :root:not([data-theme]) .create-notebook-button:hover,
+  :root:not([data-theme]) .create-sub-notebook-button:hover,
   :root:not([data-theme]) .settings-button:hover,
+  :root:not([data-theme]) .sign-out-button:hover,
+  :root:not([data-theme]) .auth-submit-button:hover,
+  :root:not([data-theme]) .auth-switch-button:hover,
   :root:not([data-theme]) .back-button:hover,
   :root:not([data-theme]) .rename-note-button:hover,
   :root:not([data-theme]) .format-button:hover,
@@ -871,7 +1104,9 @@
     background: #172554;
   }
 
-  :root:not([data-theme]) .settings-card p {
+  :root:not([data-theme]) .settings-card p,
+  :root:not([data-theme]) .auth-heading p,
+  :root:not([data-theme]) .auth-description {
     color: #cbd5e1;
   }
 
@@ -889,6 +1124,10 @@
 
 :root[data-theme="dark"] .notes-board,
 :root[data-theme="dark"] .notes-title-card,
+:root[data-theme="dark"] .auth-card,
+:root[data-theme="dark"] .auth-form input,
+:root[data-theme="dark"] .auth-submit-button,
+:root[data-theme="dark"] .auth-switch-button,
 :root[data-theme="dark"] .settings-board,
 :root[data-theme="dark"] .settings-card,
 :root[data-theme="dark"] .organization-panel,
@@ -900,6 +1139,7 @@
 :root[data-theme="dark"] .note-card,
 :root[data-theme="dark"] .pin-note-button,
 :root[data-theme="dark"] .note-card-delete-button,
+:root[data-theme="dark"] .create-sub-notebook-button,
 :root[data-theme="dark"] .delete-notebook-button,
 :root[data-theme="dark"] .color-picker-label,
 :root[data-theme="dark"] .create-note-button,
@@ -909,9 +1149,11 @@
 :root[data-theme="dark"] .format-dropdown button,
 :root[data-theme="dark"] .note-title-input,
 :root[data-theme="dark"] .note-content-input,
+:root[data-theme="dark"] .editor-counter,
 :root[data-theme="dark"] .back-button,
 :root[data-theme="dark"] .rename-note-button,
 :root[data-theme="dark"] .settings-button,
+:root[data-theme="dark"] .sign-out-button,
 :root[data-theme="dark"] .create-notebook-button,
 :root[data-theme="dark"] .theme-option {
   border-color: #e5e7eb;
@@ -920,6 +1162,11 @@
 }
 
 :root[data-theme="dark"] .notes-title-card h1,
+:root[data-theme="dark"] .auth-heading h1,
+:root[data-theme="dark"] .auth-form h2,
+:root[data-theme="dark"] .auth-form label,
+:root[data-theme="dark"] .auth-form input,
+:root[data-theme="dark"] .auth-switch-button,
 :root[data-theme="dark"] .settings-header h1,
 :root[data-theme="dark"] .notes-search,
 :root[data-theme="dark"] .notes-search input,
@@ -936,6 +1183,7 @@
 :root[data-theme="dark"] .format-button,
 :root[data-theme="dark"] .format-dropdown button,
 :root[data-theme="dark"] .table-dropdown span,
+:root[data-theme="dark"] .editor-counter,
 :root[data-theme="dark"] .brightness-control {
   color: #f8fafc;
 }
@@ -944,7 +1192,11 @@
 :root[data-theme="dark"] .note-card.pinned,
 :root[data-theme="dark"] .create-note-button:hover,
 :root[data-theme="dark"] .create-notebook-button:hover,
+:root[data-theme="dark"] .create-sub-notebook-button:hover,
 :root[data-theme="dark"] .settings-button:hover,
+:root[data-theme="dark"] .sign-out-button:hover,
+:root[data-theme="dark"] .auth-submit-button:hover,
+:root[data-theme="dark"] .auth-switch-button:hover,
 :root[data-theme="dark"] .back-button:hover,
 :root[data-theme="dark"] .rename-note-button:hover,
 :root[data-theme="dark"] .format-button:hover,
@@ -954,7 +1206,9 @@
   background: #172554;
 }
 
-:root[data-theme="dark"] .settings-card p {
+:root[data-theme="dark"] .settings-card p,
+:root[data-theme="dark"] .auth-heading p,
+:root[data-theme="dark"] .auth-description {
   color: #cbd5e1;
 }
 
@@ -967,4 +1221,314 @@
 :root[data-theme="dark"] .note-card.pinned .pin-note-button {
   color: #ffffff;
   background: #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .auth-submit-button {
+    color: #ffffff;
+    background: #2563eb;
+  }
+}
+
+:root[data-theme="dark"] .auth-submit-button {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+/* ===== Full glassmorphism redesign overrides ===== */
+.glass-shell {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-surface);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 22px 44px rgba(2, 6, 23, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.section-card {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.auth-card,
+.notes-board,
+.settings-board,
+.note-editor {
+  border-radius: 28px;
+}
+
+.auth-card {
+  width: min(540px, 100%);
+  gap: 20px;
+  padding: 28px;
+}
+
+.auth-heading p {
+  color: #93c5fd;
+  letter-spacing: 0.08em;
+}
+
+.auth-heading h1 {
+  color: #f8fafc;
+  letter-spacing: -0.03em;
+}
+
+.auth-description {
+  color: #cbd5e1;
+}
+
+.auth-form input {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.auth-submit-button,
+.auth-switch-button {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.auth-submit-button {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+.notes-board {
+  gap: 18px;
+  padding: 22px;
+}
+
+.notes-title-card {
+  border-radius: 18px;
+  padding: 14px 20px;
+}
+
+.notes-title-card h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.02em;
+}
+
+.notes-controls {
+  border-radius: 16px;
+  padding: 12px;
+  gap: 12px;
+}
+
+.notes-search span,
+.notes-sort span {
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.notes-search input,
+.notes-sort select {
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 12px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.organization-layout {
+  gap: 14px;
+}
+
+.organization-panel {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.36);
+}
+
+.organization-panel-header {
+  min-height: 56px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(30, 41, 59, 0.4);
+}
+
+.organization-panel-header h2 {
+  font-size: 1.25rem;
+  color: #f8fafc;
+}
+
+.notes-grid,
+.notebooks-grid {
+  padding: 14px;
+  gap: 12px;
+}
+
+.notebook-card {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.nested-notebooks {
+  border-left: 2px solid rgba(148, 163, 184, 0.25);
+  padding-left: 12px;
+}
+
+.note-card {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.52);
+  color: #e2e8f0;
+}
+
+.note-card:hover,
+.note-card.pinned {
+  background: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
+}
+
+.pin-note-button,
+.note-card-delete-button,
+.create-note-button,
+.create-notebook-button,
+.create-sub-notebook-button,
+.delete-notebook-button,
+.settings-button,
+.sign-out-button,
+.back-button,
+.rename-note-button,
+.format-button,
+.format-dropdown button,
+.theme-option,
+.color-picker-label {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.58);
+  color: #e2e8f0;
+}
+
+.pin-note-button:hover,
+.create-note-button:hover,
+.create-notebook-button:hover,
+.create-sub-notebook-button:hover,
+.settings-button:hover,
+.sign-out-button:hover,
+.back-button:hover,
+.rename-note-button:hover,
+.format-button:hover,
+.format-dropdown button:hover,
+.theme-option:hover {
+  background: rgba(59, 130, 246, 0.32);
+}
+
+.note-card-delete-button,
+.delete-notebook-button {
+  border-color: rgba(248, 113, 113, 0.7);
+  color: #fca5a5;
+}
+
+.note-card-delete-button:hover,
+.delete-notebook-button:hover {
+  background: rgba(185, 28, 28, 0.35);
+}
+
+.edit-page {
+  display: grid;
+  place-items: center;
+}
+
+.note-editor {
+  width: min(1120px, 100%);
+  gap: 16px;
+  padding: 22px;
+}
+
+.editor-top-row,
+.editor-actions {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.note-title-input {
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 14px;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.format-toolbar {
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.format-dropdown {
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.86);
+}
+
+.note-content-input {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 20px;
+  color: #dbe7f8;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.note-content-input:empty::before {
+  color: #94a3b8;
+}
+
+.editor-counter {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.settings-board {
+  padding: 24px;
+  gap: 18px;
+}
+
+.settings-grid {
+  gap: 12px;
+}
+
+.settings-card {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.settings-card p {
+  color: #cbd5e1;
+}
+
+@media (max-width: 1080px) {
+  .organization-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .notes-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .notes-page,
+  .edit-page,
+  .settings-page,
+  .auth-page {
+    padding: 14px;
+  }
+
+  .notes-board,
+  .note-editor,
+  .settings-board,
+  .auth-card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .notes-grid,
+  .notebooks-grid,
+  .note-content-input {
+    padding: 12px;
+  }
 }

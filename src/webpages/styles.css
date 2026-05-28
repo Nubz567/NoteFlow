@@ -3,10 +3,15 @@
   font-size: 16px;
   font-weight: 400;
   --app-brightness: 100%;
-  --surface-background: #eef2f7;
-  --surface-text: #172033;
-  color: #172033;
-  background-color: #eef2f7;
+  --surface-background: #060b16;
+  --surface-text: #e6edf8;
+  --glass-surface: rgba(15, 23, 42, 0.56);
+  --glass-border: rgba(148, 163, 184, 0.34);
+  --glass-hover: rgba(30, 41, 59, 0.7);
+  --accent-primary: #60a5fa;
+  --accent-secondary: #22d3ee;
+  color: var(--surface-text);
+  background-color: var(--surface-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -23,6 +28,11 @@ body {
   min-width: 320px;
   min-height: 100vh;
   filter: brightness(var(--app-brightness));
+  color: var(--surface-text);
+  background:
+    radial-gradient(circle at 14% 12%, rgba(14, 165, 233, 0.15), transparent 42%),
+    radial-gradient(circle at 85% 78%, rgba(59, 130, 246, 0.14), transparent 44%),
+    var(--surface-background);
 }
 
 button {
@@ -31,23 +41,35 @@ button {
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --surface-background: #111827;
-    --surface-text: #e5e7eb;
-    color: #e5e7eb;
-    background-color: #111827;
+    --surface-background: #060b16;
+    --surface-text: #e6edf8;
+    --glass-surface: rgba(15, 23, 42, 0.56);
+    --glass-border: rgba(148, 163, 184, 0.34);
+    color: var(--surface-text);
+    background-color: var(--surface-background);
   }
 }
 
 :root[data-theme="light"] {
-  --surface-background: #eef2f7;
-  --surface-text: #172033;
-  color: #172033;
-  background-color: #eef2f7;
+  --surface-background: #e8edf7;
+  --surface-text: #0f172a;
+  --glass-surface: rgba(255, 255, 255, 0.74);
+  --glass-border: rgba(15, 23, 42, 0.2);
+  --glass-hover: rgba(226, 232, 240, 0.85);
+  --accent-primary: #2563eb;
+  --accent-secondary: #0ea5e9;
+  color: var(--surface-text);
+  background-color: var(--surface-background);
 }
 
 :root[data-theme="dark"] {
-  --surface-background: #111827;
-  --surface-text: #e5e7eb;
-  color: #e5e7eb;
-  background-color: #111827;
+  --surface-background: #060b16;
+  --surface-text: #e6edf8;
+  --glass-surface: rgba(15, 23, 42, 0.56);
+  --glass-border: rgba(148, 163, 184, 0.34);
+  --glass-hover: rgba(30, 41, 59, 0.7);
+  --accent-primary: #60a5fa;
+  --accent-secondary: #22d3ee;
+  color: var(--surface-text);
+  background-color: var(--surface-background);
 }

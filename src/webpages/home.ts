@@ -1,4 +1,5 @@
 import "./home.css";
+import { hasSupabaseConfig, supabase, supabaseConfigError } from "./supabase";
 
 type Note = {
   id: string;
@@ -16,14 +17,19 @@ type Notebook = {
   name: string;
   createdAt: Date;
   color: string;
+  parentId: string | null;
 };
 
-type Page = "notes" | "edit" | "settings";
+type Page = "auth" | "notes" | "edit" | "settings";
+type AuthMode = "sign-in" | "sign-up";
 type StoredNote = Omit<Note, "createdAt"> & {
   createdAt: string;
 };
 type StoredNotebook = Omit<Notebook, "createdAt"> & {
   createdAt: string;
+};
+type AuthSession = {
+  email: string;
 };
 type ThemeMode = "light" | "dark";
 type SortMode = "custom" | "date" | "title" | "random";
@@ -55,9 +61,13 @@ const COLOR_PRESETS = [
 
 const notes: Note[] = loadSavedNotes();
 const notebooks: Notebook[] = loadSavedNotebooks();
+let authSession: AuthSession | null = null;
 let appSettings: AppSettings = loadSavedSettings();
 let selectedNoteId: string | null = null;
-let currentPage: Page = "notes";
+let currentPage: Page = "auth";
+let authMode: AuthMode = "sign-in";
+let authMessage = "";
+let hasStartedAuthListener = false;
 let searchQuery = "";
 let draggedNoteId: string | null = null;
 let dragMoved = false;
@@ -70,11 +80,16 @@ export function renderHomePage() {
   }
 
   applyAppSettings();
+  startSupabaseAuthListener();
   app.innerHTML = renderCurrentPage();
   bindHomePageEvents(app);
 }
 
 function renderCurrentPage() {
+  if (!authSession || currentPage === "auth") {
+    return renderAuthPage();
+  }
+
   if (currentPage === "edit") {
     return renderEditPage();
   }
@@ -86,19 +101,75 @@ function renderCurrentPage() {
   return renderNotesPage();
 }
 
+function renderAuthPage() {
+  const isSignUp = authMode === "sign-up";
+
+  return `
+    <main class="auth-page">
+      <section class="auth-card glass-shell" aria-label="${isSignUp ? "Create account" : "Sign in"}">
+        <div class="auth-heading">
+          <p>Welcome to</p>
+          <h1>NoteFlow</h1>
+        </div>
+
+        <form class="auth-form" data-auth-form>
+          <h2>${isSignUp ? "Create your account" : "Sign in"}</h2>
+          <p class="auth-description">
+            ${
+              hasSupabaseConfig
+                ? isSignUp
+                  ? "Use your email and password to set up your NoteFlow account."
+                  : "Sign in with your email and password to open your notes."
+                : supabaseConfigError
+            }
+          </p>
+
+          <label>
+            <span>Email</span>
+            <input type="email" data-auth-email autocomplete="email" required />
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input
+              type="password"
+              data-auth-password
+              autocomplete="${isSignUp ? "new-password" : "current-password"}"
+              required
+            />
+          </label>
+
+          ${authMessage ? `<p class="auth-message" role="alert">${escapeHtml(authMessage)}</p>` : ""}
+
+          <button class="auth-submit-button" type="submit">
+            ${isSignUp ? "Create account" : "Sign in"}
+          </button>
+        </form>
+
+        <button class="auth-switch-button" type="button" data-auth-switch>
+          ${isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
+        </button>
+      </section>
+    </main>
+  `;
+}
+
 function renderNotesPage() {
   return `
     <main class="notes-page">
-      <section class="notes-board" aria-label="Your notes">
+      <section class="notes-board glass-shell" aria-label="Your notes">
+        <button class="sign-out-button" type="button" data-sign-out>
+          Sign out
+        </button>
         <button class="settings-button" type="button" data-open-settings>
           Settings
         </button>
 
-        <header class="notes-title-card">
+        <header class="notes-title-card section-card">
           <h1>Your notes</h1>
         </header>
 
-        <div class="notes-controls">
+        <div class="notes-controls section-card">
           <label class="notes-search">
             <span>Search notes</span>
             <input
@@ -122,7 +193,7 @@ function renderNotesPage() {
         </div>
 
         <div class="organization-layout">
-          <section class="organization-panel notes-panel" aria-label="Notes">
+          <section class="organization-panel notes-panel section-card" aria-label="Notes">
             <header class="organization-panel-header">
               <h2>Notes</h2>
             </header>
@@ -134,7 +205,7 @@ function renderNotesPage() {
             </button>
           </section>
 
-          <section class="organization-panel notebooks-section" aria-label="Notebooks">
+          <section class="organization-panel notebooks-section section-card" aria-label="Notebooks">
             <header class="organization-panel-header">
               <h2>Notebooks</h2>
             </header>
@@ -156,7 +227,7 @@ function renderSettingsPage() {
 
   return `
     <main class="settings-page">
-      <section class="settings-board" aria-label="Settings">
+      <section class="settings-board glass-shell" aria-label="Settings">
         <div class="settings-header">
           <button class="back-button" type="button" data-back-to-notes>
             Back to notes
@@ -230,9 +301,11 @@ function renderEditPage() {
     return renderNotesPage();
   }
 
+  const noteStats = getNoteContentStats(selectedNote.content);
+
   return `
     <main class="edit-page">
-      <section class="note-editor" aria-label="Edit note">
+      <section class="note-editor glass-shell" aria-label="Edit note">
         <div class="editor-top-row">
           <input
             class="note-title-input ${getNoteTitleSizeClass(selectedNote.title)}"
@@ -271,6 +344,14 @@ function renderEditPage() {
                 <button type="button" data-format="insert-table">2 x 2 table</button>
               </div>
             </div>
+
+            <button class="format-button" type="button" data-insert-image>Images</button>
+            <input
+              class="image-upload-input"
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              data-image-upload
+            />
           </div>
         </div>
 
@@ -292,6 +373,9 @@ function renderEditPage() {
           aria-label="Note content"
           data-placeholder="Start writing your note..."
         >${selectedNote.content}</div>
+        <div class="editor-counter" data-editor-counter aria-live="polite">
+          ${formatNoteContentStats(noteStats)}
+        </div>
       </section>
     </main>
   `;
@@ -321,21 +405,35 @@ function renderNoteCards() {
   return renderNoteCardsForList(matchingNotes);
 }
 
-function renderNotebooks() {
+function renderNotebooks(parentId: string | null = null, depth = 0): string {
   if (notebooks.length === 0) {
     return `<p class="empty-notebooks-message">Create a notebook, then drag notes into it.</p>`;
   }
 
   return notebooks
+    .filter((notebook) => notebook.parentId === parentId)
     .map((notebook) => {
       const notebookNotes = getMatchingNotes().filter((note) => note.notebookId === notebook.id);
+      const childNotebooks = renderNotebooks(notebook.id, depth + 1);
 
       return `
-        <article class="notebook-card" data-notebook-drop-id="${notebook.id}" style="background-color: ${getPresetColorValue(notebook.color)}; color: ${getContrastColor(notebook.color)}">
+        <article
+          class="notebook-card nested-notebook-depth-${Math.min(depth, 3)}"
+          data-notebook-drop-id="${notebook.id}"
+          style="background-color: ${getPresetColorValue(notebook.color)}; color: ${getContrastColor(notebook.color)}"
+        >
           <div class="notebook-card-header">
             <h3>${escapeHtml(notebook.name)}</h3>
             <div class="notebook-card-actions">
               <span>${notebookNotes.length} notes</span>
+              <button
+                class="create-sub-notebook-button"
+                type="button"
+                data-create-sub-notebook-id="${notebook.id}"
+                aria-label="Create notebook inside ${escapeHtml(notebook.name)}"
+              >
+                Sub notebook
+              </button>
               <div class="color-picker-label">
                 <span>Color</span>
                 <div class="color-options" aria-label="Choose color for notebook ${escapeHtml(notebook.name)}">
@@ -359,6 +457,7 @@ function renderNotebooks() {
                 : `<p class="empty-notebook-message">Drop notes here</p>`
             }
           </div>
+          ${childNotebooks ? `<div class="nested-notebooks">${childNotebooks}</div>` : ""}
         </article>
       `;
     })
@@ -413,8 +512,36 @@ function renderNoteCardsForList(notesToRender: Note[]) {
 }
 
 function bindHomePageEvents(app: HTMLDivElement) {
+  app.querySelector("[data-auth-switch]")?.addEventListener("click", () => {
+    authMode = authMode === "sign-in" ? "sign-up" : "sign-in";
+    authMessage = "";
+    renderHomePage();
+  });
+
+  app.querySelector<HTMLFormElement>("[data-auth-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const form = event.target as HTMLFormElement;
+    const email = form.querySelector<HTMLInputElement>("[data-auth-email]")?.value ?? "";
+    const password = form.querySelector<HTMLInputElement>("[data-auth-password]")?.value ?? "";
+
+    if (authMode === "sign-up") {
+      await signUpWithEmail(email, password);
+    } else {
+      await signInWithEmail(email, password);
+    }
+  });
+
+  if (!authSession) {
+    return;
+  }
+
+  app.querySelector("[data-sign-out]")?.addEventListener("click", signOut);
+
   app.querySelector("[data-create-note]")?.addEventListener("click", createNote);
-  app.querySelector("[data-create-notebook]")?.addEventListener("click", createNotebook);
+  app.querySelector("[data-create-notebook]")?.addEventListener("click", () => {
+    createNotebook();
+  });
 
   app.querySelector("[data-open-settings]")?.addEventListener("click", () => {
     currentPage = "settings";
@@ -499,11 +626,27 @@ function bindHomePageEvents(app: HTMLDivElement) {
     });
   });
 
+  app.querySelector<HTMLButtonElement>("[data-insert-image]")?.addEventListener("click", () => {
+    app.querySelector<HTMLInputElement>("[data-image-upload]")?.click();
+  });
+
+  app.querySelector<HTMLInputElement>("[data-image-upload]")?.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    const image = input.files?.[0];
+
+    if (image) {
+      insertImageIntoNote(image, selectedNote);
+    }
+
+    input.value = "";
+  });
+
   app.querySelector<HTMLDivElement>("[data-note-content]")?.addEventListener("input", (event) => {
     const editor = event.target as HTMLDivElement;
 
     selectedNote.content = editor.innerHTML;
     saveNotes();
+    renderEditorCounter(app, editor.innerHTML);
   });
 }
 
@@ -527,8 +670,10 @@ function createNote() {
   renderHomePage();
 }
 
-function createNotebook() {
-  const name = window.prompt("Notebook name", `Notebook ${notebooks.length + 1}`)?.trim();
+function createNotebook(parentId: string | null = null) {
+  const parentNotebook = notebooks.find((notebook) => notebook.id === parentId);
+  const defaultName = parentNotebook ? `${parentNotebook.name} notebook` : `Notebook ${notebooks.length + 1}`;
+  const name = window.prompt(parentNotebook ? `Notebook inside ${parentNotebook.name}` : "Notebook name", defaultName)?.trim();
 
   if (!name) {
     return;
@@ -539,6 +684,7 @@ function createNotebook() {
     name,
     createdAt: new Date(),
     color: DEFAULT_NOTEBOOK_COLOR,
+    parentId,
   });
   saveNotebooks();
   renderHomePage();
@@ -579,6 +725,7 @@ function renderNotesCollectionsOnly(app: HTMLDivElement) {
   bindNoteOpenEvents(app);
   bindPinNoteEvents(app);
   bindDeleteNoteEvents(app);
+  bindCreateSubNotebookEvents(app);
   bindDeleteNotebookEvents(app);
   bindColorEvents(app);
   bindDragNoteEvents(app);
@@ -787,6 +934,14 @@ function bindDeleteNotebookEvents(app: HTMLDivElement) {
   });
 }
 
+function bindCreateSubNotebookEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLButtonElement>("[data-create-sub-notebook-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      createNotebook(button.dataset.createSubNotebookId ?? null);
+    });
+  });
+}
+
 function bindColorEvents(app: HTMLDivElement) {
   app.querySelectorAll<HTMLButtonElement>("[data-note-color-id]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -818,21 +973,26 @@ function bindColorEvents(app: HTMLDivElement) {
 }
 
 function deleteNotebook(notebook: Notebook) {
-  const shouldDelete = window.confirm(`Delete notebook "${notebook.name}"? Notes inside it will move back to Notes.`);
+  const descendantIds = getNotebookDescendantIds(notebook.id);
+  const notebookIdsToDelete = [notebook.id, ...descendantIds];
+  const shouldDelete = window.confirm(
+    `Delete notebook "${notebook.name}"${descendantIds.length > 0 ? " and its sub-notebooks" : ""}? Notes inside will move back to Notes.`,
+  );
 
   if (!shouldDelete) {
     return;
   }
 
-  const notebookIndex = notebooks.findIndex((item) => item.id === notebook.id);
+  for (const notebookId of notebookIdsToDelete) {
+    const notebookIndex = notebooks.findIndex((item) => item.id === notebookId);
 
-  if (notebookIndex === -1) {
-    return;
+    if (notebookIndex !== -1) {
+      notebooks.splice(notebookIndex, 1);
+    }
   }
 
-  notebooks.splice(notebookIndex, 1);
   notes.forEach((note) => {
-    if (note.notebookId === notebook.id) {
+    if (note.notebookId && notebookIdsToDelete.includes(note.notebookId)) {
       note.notebookId = null;
     }
   });
@@ -840,6 +1000,12 @@ function deleteNotebook(notebook: Notebook) {
   saveNotebooks();
   saveNotes();
   renderHomePage();
+}
+
+function getNotebookDescendantIds(parentId: string): string[] {
+  const childIds = notebooks.filter((notebook) => notebook.parentId === parentId).map((notebook) => notebook.id);
+
+  return childIds.flatMap((childId) => [childId, ...getNotebookDescendantIds(childId)]);
 }
 
 function getSortedNotes(notesToSort: Note[]) {
@@ -996,6 +1162,203 @@ function applyTextFormatting(format: string | undefined, note: Note) {
   saveNotes();
 }
 
+function insertImageIntoNote(image: File, note: Note) {
+  if (!image.type.startsWith("image/")) {
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.addEventListener("load", () => {
+    const imageSource = String(reader.result ?? "");
+    const editor = document.querySelector<HTMLDivElement>("[data-note-content]");
+
+    if (!editor || !imageSource) {
+      return;
+    }
+
+    editor.focus();
+    document.execCommand(
+      "insertHTML",
+      false,
+      `<figure><img src="${escapeHtml(imageSource)}" alt="${escapeHtml(image.name)}" /><figcaption>${escapeHtml(
+        image.name,
+      )}</figcaption></figure>`,
+    );
+    note.content = editor.innerHTML;
+    saveNotes();
+    renderEditorCounter(document.querySelector<HTMLDivElement>("#app"), editor.innerHTML);
+  });
+
+  reader.readAsDataURL(image);
+}
+
+function renderEditorCounter(app: HTMLDivElement | null, content: string) {
+  const counter = app?.querySelector<HTMLElement>("[data-editor-counter]");
+
+  if (!counter) {
+    return;
+  }
+
+  counter.textContent = formatNoteContentStats(getNoteContentStats(content));
+}
+
+function getNoteContentStats(content: string) {
+  const text = stripHtml(content).trim();
+  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+
+  return {
+    words,
+    characters: text.length,
+  };
+}
+
+function formatNoteContentStats(stats: { words: number; characters: number }) {
+  return `${stats.words} ${stats.words === 1 ? "word" : "words"} | ${stats.characters} ${
+    stats.characters === 1 ? "character" : "characters"
+  }`;
+}
+
+async function signUpWithEmail(email: string, password: string) {
+  if (!supabase) {
+    authMessage = supabaseConfigError;
+    renderHomePage();
+    return;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const validationMessage = validateAuthCredentials(normalizedEmail, password);
+
+  if (validationMessage) {
+    authMessage = validationMessage;
+    renderHomePage();
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email: normalizedEmail,
+    password,
+  });
+
+  if (error) {
+    authMessage = getAuthErrorMessage(error.message);
+    renderHomePage();
+    return;
+  }
+
+  if (!data.session) {
+    authMessage = "Account created. Check your email to confirm your account, then sign in.";
+    authMode = "sign-in";
+    renderHomePage();
+    return;
+  }
+
+  setAuthSessionFromEmail(data.user?.email ?? normalizedEmail);
+  renderHomePage();
+}
+
+async function signInWithEmail(email: string, password: string) {
+  if (!supabase) {
+    authMessage = supabaseConfigError;
+    renderHomePage();
+    return;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const validationMessage = validateAuthCredentials(normalizedEmail, password);
+
+  if (validationMessage) {
+    authMessage = validationMessage;
+    renderHomePage();
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  });
+
+  if (error) {
+    authMessage = getAuthErrorMessage(error.message);
+    renderHomePage();
+    return;
+  }
+
+  setAuthSessionFromEmail(data.user.email ?? normalizedEmail);
+  renderHomePage();
+}
+
+async function signOut() {
+  await supabase?.auth.signOut();
+  authSession = null;
+  selectedNoteId = null;
+  currentPage = "auth";
+  authMode = "sign-in";
+  authMessage = "";
+  renderHomePage();
+}
+
+function validateAuthCredentials(email: string, password: string) {
+  if (!email || !email.includes("@")) {
+    return "Enter a valid email address.";
+  }
+
+  if (password.length < 6) {
+    return "Password must be at least 6 characters.";
+  }
+
+  return "";
+}
+
+function getAuthErrorMessage(message: string) {
+  if (message.toLowerCase().includes("failed to fetch")) {
+    return "Could not reach Supabase. Check that VITE_SUPABASE_URL is your Project URL, not the dashboard URL, then restart the app.";
+  }
+
+  return message;
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function setAuthSessionFromEmail(email: string) {
+  authSession = { email: normalizeEmail(email) };
+  authMessage = "";
+  currentPage = "notes";
+}
+
+function startSupabaseAuthListener() {
+  if (hasStartedAuthListener || !supabase) {
+    return;
+  }
+
+  hasStartedAuthListener = true;
+
+  supabase.auth.getSession().then(({ data }) => {
+    const email = data.session?.user.email;
+
+    if (email) {
+      setAuthSessionFromEmail(email);
+      renderHomePage();
+    }
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    const email = session?.user.email;
+
+    if (email) {
+      setAuthSessionFromEmail(email);
+      renderHomePage();
+      return;
+    }
+
+    authSession = null;
+    currentPage = "auth";
+    renderHomePage();
+  });
+}
+
 function loadSavedNotes() {
   const savedNotes = localStorage.getItem(NOTES_STORAGE_KEY);
 
@@ -1034,6 +1397,7 @@ function loadSavedNotebooks() {
       ...notebook,
       createdAt: new Date(notebook.createdAt),
       color: getPresetColorId(notebook.color),
+      parentId: typeof notebook.parentId === "string" ? notebook.parentId : null,
     }));
   } catch {
     return [];
