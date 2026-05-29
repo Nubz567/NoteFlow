@@ -39,9 +39,36 @@ type Slide = {
   color: string;
 };
 
-type Page = "auth" | "notes" | "edit" | "slide-edit" | "settings";
+type Whiteboard = {
+  id: string;
+  title: string;
+  imageData: string;
+  elementsHtml: string;
+  createdAt: Date;
+  pinned: boolean;
+  order: number;
+  notebookId: string | null;
+  color: string;
+};
+
+const EDITOR_SHAPES = [
+  { id: "rectangle", label: "Rectangle" },
+  { id: "ellipse", label: "Circle" },
+  { id: "triangle", label: "Triangle" },
+  { id: "line", label: "Line" },
+  { id: "arrow", label: "Arrow" },
+  { id: "diamond", label: "Diamond" },
+  { id: "star", label: "Star" },
+] as const;
+
+type EditorShapeKind = (typeof EDITOR_SHAPES)[number]["id"];
+type WhiteboardTool = "pen" | "eraser" | "text-box" | EditorShapeKind;
+
+const EDITOR_SHAPE_IDS = new Set<string>(EDITOR_SHAPES.map((shape) => shape.id));
+
+type Page = "auth" | "notes" | "edit" | "slide-edit" | "whiteboard-edit" | "settings";
 type AuthMode = "sign-in" | "sign-up";
-type HomeTab = "notes" | "slides";
+type HomeTab = "notes" | "slides" | "whiteboards";
 type SlideContextMenu = {
   pageId: string;
   x: number;
@@ -54,6 +81,9 @@ type StoredNotebook = Omit<Notebook, "createdAt"> & {
   createdAt: string;
 };
 type StoredSlide = Omit<Slide, "createdAt"> & {
+  createdAt: string;
+};
+type StoredWhiteboard = Omit<Whiteboard, "createdAt"> & {
   createdAt: string;
 };
 type AuthSession = {
@@ -69,10 +99,30 @@ type AppSettings = {
 
 const NOTES_STORAGE_KEY = "noteflow.notes";
 const SLIDES_STORAGE_KEY = "noteflow.slides";
+const WHITEBOARDS_STORAGE_KEY = "noteflow.whiteboards";
 const NOTEBOOKS_STORAGE_KEY = "noteflow.notebooks";
 const SETTINGS_STORAGE_KEY = "noteflow.settings";
 const DEFAULT_NOTE_COLOR = "none";
 const DEFAULT_SLIDE_COLOR = "none";
+const DEFAULT_WHITEBOARD_COLOR = "none";
+const WHITEBOARD_BACKGROUND = "#ffffff";
+const WHITEBOARD_DEFAULT_PEN_COLOR = "#111827";
+const WHITEBOARD_ERASER_SIZE = 28;
+const WHITEBOARD_PEN_COLORS = [
+  { id: "black", label: "Black", value: "#111827" },
+  { id: "red", label: "Red", value: "#dc2626" },
+  { id: "orange", label: "Orange", value: "#ea580c" },
+  { id: "green", label: "Green", value: "#16a34a" },
+  { id: "blue", label: "Blue", value: "#2563eb" },
+  { id: "purple", label: "Purple", value: "#7c3aed" },
+  { id: "pink", label: "Pink", value: "#db2777" },
+] as const;
+const WHITEBOARD_PEN_SIZES = [
+  { id: "s", label: "Small", value: 2 },
+  { id: "m", label: "Medium", value: 5 },
+  { id: "l", label: "Large", value: 10 },
+  { id: "xl", label: "Extra large", value: 18 },
+] as const;
 const DEFAULT_NOTEBOOK_COLOR = "none";
 const MAX_NOTE_TITLE_LENGTH = 25;
 const COLOR_PRESETS = [
@@ -91,6 +141,7 @@ const COLOR_PRESETS = [
 
 const notes: Note[] = loadSavedNotes();
 const slides: Slide[] = loadSavedSlides();
+const whiteboards: Whiteboard[] = loadSavedWhiteboards();
 const notebooks: Notebook[] = loadSavedNotebooks();
 let authSession: AuthSession | null = null;
 let isTrialSession = false;
@@ -98,6 +149,7 @@ let appSettings: AppSettings = loadSavedSettings();
 let selectedNoteId: string | null = null;
 let selectedSlideId: string | null = null;
 let selectedSlidePageId: string | null = null;
+let selectedWhiteboardId: string | null = null;
 let openedNotebookId: string | null = null;
 let currentPage: Page = "auth";
 let activeHomeTab: HomeTab = "notes";
@@ -109,6 +161,7 @@ let hasStartedAuthListener = false;
 let searchQuery = "";
 let draggedNoteId: string | null = null;
 let draggedSlideId: string | null = null;
+let draggedWhiteboardId: string | null = null;
 let dragMoved = false;
 let savedEditorSelection: Range | null = null;
 let slideContextMenu: SlideContextMenu | null = null;
@@ -138,6 +191,10 @@ function renderCurrentPage() {
 
   if (currentPage === "slide-edit") {
     return renderSlideEditPage();
+  }
+
+  if (currentPage === "whiteboard-edit") {
+    return renderWhiteboardEditPage();
   }
 
   if (currentPage === "settings") {
@@ -202,7 +259,7 @@ function renderAuthPage() {
           Try trial mode
         </button>
         <p class="auth-trial-hint">
-          Explore NoteFlow without an account. Notes and slides are not saved. Notebooks and images are unavailable.
+          Explore NoteFlow without an account. Notes, slides, and whiteboards are not saved. Notebooks and images are unavailable.
         </p>
       </section>
     </main>
@@ -211,6 +268,12 @@ function renderAuthPage() {
 
 function renderNotesPage() {
   const isNotesTab = activeHomeTab === "notes";
+  const isSlidesTab = activeHomeTab === "slides";
+  const activeGridClass = isNotesTab ? "notes-grid" : isSlidesTab ? "slides-grid" : "whiteboards-grid";
+  const activeGridLabel = isNotesTab ? "Unfiled notes" : isSlidesTab ? "Slides" : "Whiteboards";
+  const activeGridContent = isNotesTab ? renderNoteCards() : isSlidesTab ? renderSlideCards() : renderWhiteboardCards();
+  const createAttribute = isNotesTab ? "data-create-note" : isSlidesTab ? "data-create-slide" : "data-create-whiteboard";
+  const createLabel = isNotesTab ? "note" : isSlidesTab ? "slide" : "whiteboard";
 
   return `
     <main class="notes-page">
@@ -225,10 +288,27 @@ function renderNotesPage() {
         ${
           isTrialSession
             ? `<p class="trial-banner section-card" role="status">
-                Trial mode — notes and slides are not saved. Notebooks and images are unavailable.
+                Trial mode — notes, slides, and whiteboards are not saved. Notebooks and images are unavailable.
               </p>`
             : ""
         }
+
+        <div class="notes-title-card">
+          <h1>Your notes</h1>
+        </div>
+
+        <div class="notes-controls">
+          <label class="notes-search">
+            <span>Search</span>
+            <input
+              type="search"
+              data-search-notes
+              value="${escapeHtml(searchQuery)}"
+              placeholder="Search notes, slides, and whiteboards..."
+              aria-label="Search notes, slides, and whiteboards"
+            />
+          </label>
+        </div>
 
         <div class="organization-layout ${isTrialSession ? "trial-only-notes" : ""}">
           <section class="organization-panel notes-panel content-panel section-card" aria-label="Workspace">
@@ -239,25 +319,25 @@ function renderNotesPage() {
               <button class="home-tab ${activeHomeTab === "slides" ? "active" : ""}" type="button" data-home-tab="slides">
                 Slides
               </button>
-              <button class="home-tab" type="button" disabled title="Coming soon">
+              <button class="home-tab ${activeHomeTab === "whiteboards" ? "active" : ""}" type="button" data-home-tab="whiteboards">
                 Whiteboards
               </button>
             </header>
 
             <div
-              class="${isNotesTab ? "notes-grid" : "slides-grid"} home-content-grid"
-              aria-label="${isNotesTab ? "Unfiled notes" : "Slides"}"
+              class="${activeGridClass} home-content-grid"
+              aria-label="${activeGridLabel}"
               data-notebook-drop-id=""
             >
-              ${isNotesTab ? renderNoteCards() : renderSlideCards()}
+              ${activeGridContent}
             </div>
 
             <button
               class="create-note-button create-content-button"
               type="button"
-              ${isNotesTab ? "data-create-note" : "data-create-slide"}
+              ${createAttribute}
             >
-              New ${isNotesTab ? "note" : "slide"}
+              New ${createLabel}
             </button>
           </section>
 
@@ -343,6 +423,7 @@ function renderSettingsPage() {
             <p>${notes.length} total notes</p>
             <p>${pinnedNotesCount} pinned notes</p>
             <p>${slides.length} slide decks</p>
+            <p>${whiteboards.length} whiteboards</p>
           </article>
 
           <article class="settings-card">
@@ -357,7 +438,7 @@ function renderSettingsPage() {
             <h2>Account</h2>
             <p>Signed in as ${escapeHtml(authSession.email)}</p>
             <p class="settings-danger-text">
-              Permanently delete your NoteFlow account. Your sign-in will be removed. Notes and slides stored on this device will also be cleared.
+              Permanently delete your NoteFlow account. Your sign-in will be removed. Notes, slides, and whiteboards stored on this device will also be cleared.
             </p>
             <button
               class="delete-account-button"
@@ -431,6 +512,8 @@ function renderEditPage() {
                 <button type="button" data-format="insert-table">2 x 2 table</button>
               </div>
             </div>
+
+            ${renderEditorShapesMenu("data-format")}
 
             ${
               isTrialSession
@@ -515,8 +598,8 @@ function renderSlideEditPage() {
               <button type="button" data-slide-tool="subheading">Sub heading</button>
             </div>
           </div>
+          ${renderEditorShapesMenu("data-slide-tool")}
           <button class="format-button" type="button" data-next-slide-page>Next slide</button>
-          <button class="format-button filler-button" type="button" disabled>Filler</button>
           <button class="format-button filler-button" type="button" disabled>Filler</button>
           <button class="format-button filler-button" type="button" disabled>Filler</button>
         </div>
@@ -585,6 +668,141 @@ function renderSlideContextMenu() {
   `;
 }
 
+function renderEditorShapesMenu(toolAttribute: "data-format" | "data-slide-tool" | "data-whiteboard-tool") {
+  return `
+    <div class="format-menu editor-shapes-menu">
+      <button class="format-button" type="button">Shapes</button>
+      <div class="format-dropdown">
+        ${EDITOR_SHAPES.map((shape) => {
+          const toolValue = toolAttribute === "data-format" ? `shape-${shape.id}` : shape.id;
+
+          return `<button type="button" ${toolAttribute}="${toolValue}">${shape.label}</button>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function isShapeTool(tool: WhiteboardTool): tool is EditorShapeKind {
+  return EDITOR_SHAPE_IDS.has(tool);
+}
+
+function getEditorShapeHtml(shape: EditorShapeKind) {
+  const shapeMarkup: Record<EditorShapeKind, string> = {
+    rectangle: `<rect x="3" y="3" width="134" height="84" fill="none" stroke="#2563eb" stroke-width="3"></rect>`,
+    ellipse: `<ellipse cx="70" cy="45" rx="67" ry="42" fill="none" stroke="#2563eb" stroke-width="3"></ellipse>`,
+    triangle: `<polygon points="70,6 134,84 6,84" fill="none" stroke="#2563eb" stroke-width="3"></polygon>`,
+    line: `<line x1="8" y1="82" x2="132" y2="8" stroke="#2563eb" stroke-width="3" stroke-linecap="round"></line>`,
+    arrow: `<line x1="8" y1="82" x2="118" y2="18" stroke="#2563eb" stroke-width="3" stroke-linecap="round"></line><polygon points="118,18 132,12 126,28" fill="#2563eb"></polygon>`,
+    diamond: `<polygon points="70,6 134,45 70,84 6,45" fill="none" stroke="#2563eb" stroke-width="3"></polygon>`,
+    star: `<polygon points="70,8 81,38 114,38 87,58 96,88 70,70 44,88 53,58 26,38 59,38" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round"></polygon>`,
+  };
+
+  return `<div class="editor-shape editor-shape-${shape}" contenteditable="false" draggable="false" style="left: 48px; top: 48px; width: 140px; height: 90px;"><svg viewBox="0 0 140 90" width="100%" height="100%" preserveAspectRatio="none" aria-hidden="true">${shapeMarkup[shape]}</svg></div>`;
+}
+
+function insertEditorShape(shape: EditorShapeKind, editor: HTMLDivElement) {
+  editor.focus();
+  document.execCommand("insertHTML", false, getEditorShapeHtml(shape));
+}
+
+function renderWhiteboardPenColorOptions() {
+  return WHITEBOARD_PEN_COLORS.map(
+    (color, index) => `
+      <button
+        type="button"
+        class="whiteboard-color-swatch ${index === 0 ? "active" : ""}"
+        data-whiteboard-pen-color="${color.value}"
+        style="background-color: ${color.value}"
+        aria-label="${color.label}"
+      ></button>
+    `,
+  ).join("");
+}
+
+function renderWhiteboardPenSizeOptions() {
+  return WHITEBOARD_PEN_SIZES.map(
+    (size, index) => `
+      <button
+        type="button"
+        class="whiteboard-size-button ${index === 1 ? "active" : ""}"
+        data-whiteboard-pen-size="${size.value}"
+        aria-label="${size.label}"
+      >
+        ${size.id.toUpperCase()}
+      </button>
+    `,
+  ).join("");
+}
+
+function renderWhiteboardEditPage() {
+  const selectedWhiteboard = getSelectedWhiteboard();
+
+  if (!selectedWhiteboard) {
+    currentPage = "notes";
+    return renderNotesPage();
+  }
+
+  return `
+    <main class="edit-page whiteboard-editor-page">
+      <section class="whiteboard-editor glass-shell" aria-label="Edit whiteboard">
+        <div class="editor-top-row">
+          <input
+            class="note-title-input ${getNoteTitleSizeClass(selectedWhiteboard.title)}"
+            data-whiteboard-title
+            maxlength="${MAX_NOTE_TITLE_LENGTH}"
+            value="${escapeHtml(selectedWhiteboard.title)}"
+            aria-label="Whiteboard title"
+          />
+
+          <div class="whiteboard-toolbar" aria-label="Whiteboard tools">
+            <div class="whiteboard-tool-group" aria-label="Drawing tools">
+              <button class="format-button active" type="button" data-whiteboard-tool="pen">Pen</button>
+              <button class="format-button" type="button" data-whiteboard-tool="eraser">Eraser</button>
+              <button class="format-button" type="button" data-whiteboard-tool="text-box">Text box</button>
+              ${renderEditorShapesMenu("data-whiteboard-tool")}
+            </div>
+            <div class="whiteboard-tool-group" aria-label="Pen colors">
+              <span class="whiteboard-tool-label">Color</span>
+              ${renderWhiteboardPenColorOptions()}
+            </div>
+            <div class="whiteboard-tool-group" aria-label="Pen sizes">
+              <span class="whiteboard-tool-label">Size</span>
+              ${renderWhiteboardPenSizeOptions()}
+            </div>
+            <button class="format-button" type="button" data-clear-whiteboard>Clear</button>
+          </div>
+        </div>
+
+        <div class="editor-actions">
+          <button class="back-button" type="button" data-back-to-notes>
+            Back to home
+          </button>
+          <button class="rename-note-button" type="button" data-rename-whiteboard>
+            Rename
+          </button>
+          <button class="delete-note-button" type="button" data-delete-whiteboard>
+            Delete
+          </button>
+        </div>
+
+        <div class="whiteboard-canvas-wrap">
+          <div class="whiteboard-stage" data-whiteboard-stage>
+            <canvas
+              class="whiteboard-canvas"
+              width="1280"
+              height="720"
+              data-whiteboard-canvas
+              aria-label="Whiteboard drawing canvas"
+            ></canvas>
+            <div class="whiteboard-overlay" data-whiteboard-overlay>${selectedWhiteboard.elementsHtml}</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  `;
+}
+
 function renderNoteCards() {
   if (notes.length === 0) {
     return `
@@ -633,7 +851,7 @@ function renderSlideCards() {
   return renderSlideCardsForList(matchingSlides);
 }
 
-function renderSlideCardsForList(slidesToRender: Slide[]) {
+function renderSlideCardsForList(slidesToRender: Slide[], options: { showRemoveFromNotebook?: boolean } = {}) {
   return slidesToRender
     .map(
       (slide, index) => `
@@ -663,6 +881,19 @@ function renderSlideCardsForList(slidesToRender: Slide[]) {
               ${renderColorOptions("slide", slide.id, slide.color)}
             </div>
           </div>
+          ${
+            options.showRemoveFromNotebook
+              ? `<button
+                  class="remove-from-notebook-button"
+                  type="button"
+                  draggable="false"
+                  data-remove-slide-from-notebook="${slide.id}"
+                  aria-label="Remove ${escapeHtml(slide.title)} from notebook"
+                >
+                  Remove
+                </button>`
+              : ""
+          }
           <button
             class="delete-note-button note-card-delete-button"
             type="button"
@@ -678,13 +909,104 @@ function renderSlideCardsForList(slidesToRender: Slide[]) {
     .join("");
 }
 
+function renderWhiteboardCards() {
+  if (whiteboards.length === 0) {
+    return `
+      <div class="empty-notes-message">
+        <h2>No whiteboards yet</h2>
+        <p>Create your first whiteboard to sketch ideas.</p>
+      </div>
+    `;
+  }
+
+  const matchingWhiteboards = getMatchingWhiteboards().filter((whiteboard) => whiteboard.notebookId === null);
+
+  if (matchingWhiteboards.length === 0) {
+    return `
+      <div class="empty-notes-message">
+        <h2>No matching whiteboards</h2>
+        <p>Try a different search.</p>
+      </div>
+    `;
+  }
+
+  return renderWhiteboardCardsForList(matchingWhiteboards);
+}
+
+function renderWhiteboardCardsForList(whiteboardsToRender: Whiteboard[], options: { showRemoveFromNotebook?: boolean } = {}) {
+  return whiteboardsToRender
+    .map(
+      (whiteboard, index) => `
+        <article
+          class="whiteboard-card slide-card slide-card-${(index % 6) + 1} ${whiteboard.pinned ? "pinned" : ""}"
+          data-whiteboard-id="${whiteboard.id}"
+          data-drag-whiteboard-id="${whiteboard.id}"
+          style="background-color: ${getPresetColorValue(whiteboard.color)}; color: ${getContrastColor(whiteboard.color)}"
+          role="button"
+          tabindex="0"
+        >
+          <div class="slide-card-preview whiteboard-card-preview">
+            <span>${escapeHtml(whiteboard.title)}</span>
+          </div>
+          <button
+            class="pin-note-button"
+            type="button"
+            draggable="false"
+            data-pin-whiteboard-id="${whiteboard.id}"
+            aria-label="${whiteboard.pinned ? "Unpin" : "Pin"} ${escapeHtml(whiteboard.title)}"
+          >
+            ${whiteboard.pinned ? "Pinned" : "Pin"}
+          </button>
+          <div class="color-picker-label">
+            <span>Color</span>
+            <div class="color-options" aria-label="Choose color for ${escapeHtml(whiteboard.title)}">
+              ${renderColorOptions("whiteboard", whiteboard.id, whiteboard.color)}
+            </div>
+          </div>
+          ${
+            options.showRemoveFromNotebook
+              ? `<button
+                  class="remove-from-notebook-button"
+                  type="button"
+                  draggable="false"
+                  data-remove-whiteboard-from-notebook="${whiteboard.id}"
+                  aria-label="Remove ${escapeHtml(whiteboard.title)} from notebook"
+                >
+                  Remove
+                </button>`
+              : ""
+          }
+          <button
+            class="delete-note-button note-card-delete-button"
+            type="button"
+            draggable="false"
+            data-delete-whiteboard-id="${whiteboard.id}"
+            aria-label="Delete ${escapeHtml(whiteboard.title)}"
+          >
+            Delete
+          </button>
+        </article>
+      `,
+    )
+    .join("");
+}
+
 function renderNotebooks(parentId: string | null = null, depth = 0): string {
   if (notebooks.length === 0) {
     return `<p class="empty-notebooks-message">Create a notebook, then drag notes or slides into it.</p>`;
   }
 
-  return notebooks
+  const visibleNotebooks = notebooks
     .filter((notebook) => notebook.parentId === parentId)
+    .filter((notebook) => notebookMatchesSearch(notebook));
+
+  if (visibleNotebooks.length === 0) {
+    return searchQuery.trim()
+      ? `<p class="empty-notebooks-message">No notebooks match your search.</p>`
+      : `<p class="empty-notebooks-message">Create a notebook, then drag notes or slides into it.</p>`;
+  }
+
+  return visibleNotebooks
     .sort((first, second) => {
       if (first.pinned !== second.pinned) {
         return first.pinned ? -1 : 1;
@@ -695,7 +1017,8 @@ function renderNotebooks(parentId: string | null = null, depth = 0): string {
     .map((notebook) => {
       const notebookNotes = getMatchingNotes().filter((note) => note.notebookId === notebook.id);
       const notebookSlides = getMatchingSlides().filter((slide) => slide.notebookId === notebook.id);
-      const hasNotebookItems = notebookNotes.length > 0 || notebookSlides.length > 0;
+      const notebookWhiteboards = getMatchingWhiteboards().filter((whiteboard) => whiteboard.notebookId === notebook.id);
+      const hasNotebookItems = notebookNotes.length > 0 || notebookSlides.length > 0 || notebookWhiteboards.length > 0;
 
       return `
         <article
@@ -709,7 +1032,7 @@ function renderNotebooks(parentId: string | null = null, depth = 0): string {
           <div class="notebook-card-header">
             <h3>${escapeHtml(notebook.name)}</h3>
             <div class="notebook-card-actions">
-              <span>${notebookNotes.length} notes · ${notebookSlides.length} slides</span>
+              <span>${notebookNotes.length} notes · ${notebookSlides.length} slides · ${notebookWhiteboards.length} whiteboards</span>
               <button
                 class="pin-notebook-button"
                 type="button"
@@ -763,8 +1086,9 @@ function renderNotebookPopup() {
 
   const notebookNotes = getMatchingNotes().filter((note) => note.notebookId === notebook.id);
   const notebookSlides = getMatchingSlides().filter((slide) => slide.notebookId === notebook.id);
+  const notebookWhiteboards = getMatchingWhiteboards().filter((whiteboard) => whiteboard.notebookId === notebook.id);
   const childNotebooks = renderNotebooks(notebook.id, 1);
-  const hasNotebookItems = notebookNotes.length > 0 || notebookSlides.length > 0 || Boolean(childNotebooks);
+  const hasNotebookItems = notebookNotes.length > 0 || notebookSlides.length > 0 || notebookWhiteboards.length > 0 || Boolean(childNotebooks);
 
   return `
     <div class="notebook-popup-backdrop" data-close-notebook-popup>
@@ -778,7 +1102,7 @@ function renderNotebookPopup() {
           <div>
             <p>Notebook</p>
             <h2>${escapeHtml(notebook.name)}</h2>
-            <span>${notebookNotes.length} notes · ${notebookSlides.length} slides</span>
+            <span>${notebookNotes.length} notes · ${notebookSlides.length} slides · ${notebookWhiteboards.length} whiteboards</span>
           </div>
           <button class="back-button" type="button" data-close-notebook-popup>
             Close
@@ -793,7 +1117,7 @@ function renderNotebookPopup() {
                   notebookNotes.length > 0
                     ? `<div class="notebook-content-group">
                         <p class="notebook-section-label">Notes</p>
-                        <div class="notebook-items-grid">${renderNoteCardsForList(notebookNotes)}</div>
+                        <div class="notebook-items-grid">${renderNoteCardsForList(notebookNotes, { showRemoveFromNotebook: true })}</div>
                       </div>`
                     : ""
                 }
@@ -801,7 +1125,15 @@ function renderNotebookPopup() {
                   notebookSlides.length > 0
                     ? `<div class="notebook-content-group">
                         <p class="notebook-section-label">Slides</p>
-                        <div class="notebook-items-grid">${renderSlideCardsForList(notebookSlides)}</div>
+                        <div class="notebook-items-grid">${renderSlideCardsForList(notebookSlides, { showRemoveFromNotebook: true })}</div>
+                      </div>`
+                    : ""
+                }
+                ${
+                  notebookWhiteboards.length > 0
+                    ? `<div class="notebook-content-group">
+                        <p class="notebook-section-label">Whiteboards</p>
+                        <div class="notebook-items-grid">${renderWhiteboardCardsForList(notebookWhiteboards, { showRemoveFromNotebook: true })}</div>
                       </div>`
                     : ""
                 }
@@ -814,7 +1146,7 @@ function renderNotebookPopup() {
                     : ""
                 }
               `
-              : `<p class="empty-notebook-message">This notebook is empty. Drag notes or slides here.</p>`
+              : `<p class="empty-notebook-message">This notebook is empty. Drag notes, slides, or whiteboards here.</p>`
           }
         </div>
       </section>
@@ -822,7 +1154,7 @@ function renderNotebookPopup() {
   `;
 }
 
-function renderNoteCardsForList(notesToRender: Note[]) {
+function renderNoteCardsForList(notesToRender: Note[], options: { showRemoveFromNotebook?: boolean } = {}) {
   return notesToRender
     .map(
       (note, index) => `
@@ -854,6 +1186,19 @@ function renderNoteCardsForList(notesToRender: Note[]) {
               ${renderColorOptions("note", note.id, note.color)}
             </div>
           </div>
+          ${
+            options.showRemoveFromNotebook
+              ? `<button
+                  class="remove-from-notebook-button"
+                  type="button"
+                  draggable="false"
+                  data-remove-note-from-notebook="${note.id}"
+                  aria-label="Remove ${escapeHtml(note.title)} from notebook"
+                >
+                  Remove
+                </button>`
+              : ""
+          }
           <button
             class="delete-note-button note-card-delete-button"
             type="button"
@@ -902,13 +1247,15 @@ function bindHomePageEvents(app: HTMLDivElement) {
 
   app.querySelector("[data-create-note]")?.addEventListener("click", createNote);
   app.querySelector("[data-create-slide]")?.addEventListener("click", createSlide);
+  app.querySelector("[data-create-whiteboard]")?.addEventListener("click", createWhiteboard);
   app.querySelector("[data-create-notebook]")?.addEventListener("click", () => {
     createNotebook();
   });
 
   app.querySelectorAll<HTMLButtonElement>("[data-home-tab]").forEach((button) => {
     button.addEventListener("click", () => {
-      activeHomeTab = button.dataset.homeTab === "slides" ? "slides" : "notes";
+      activeHomeTab =
+        button.dataset.homeTab === "slides" ? "slides" : button.dataset.homeTab === "whiteboards" ? "whiteboards" : "notes";
       renderHomePage();
     });
   });
@@ -957,18 +1304,22 @@ function bindHomePageEvents(app: HTMLDivElement) {
 
   bindNoteOpenEvents(app);
   bindSlideOpenEvents(app);
+  bindWhiteboardOpenEvents(app);
 
   bindPinNoteEvents(app);
   bindPinSlideEvents(app);
+  bindPinWhiteboardEvents(app);
   bindPinNotebookEvents(app);
   bindDeleteNoteEvents(app);
   bindDeleteSlideEvents(app);
+  bindDeleteWhiteboardEvents(app);
   bindDeleteNotebookEvents(app);
   bindNotebookOpenEvents(app);
   bindDropdownEvents(app);
   bindColorEvents(app);
   bindDragNoteEvents(app);
   bindDragSlideEvents(app);
+  bindDragWhiteboardEvents(app);
 
   app.querySelector("[data-back-to-notes]")?.addEventListener("click", () => {
     currentPage = "notes";
@@ -979,6 +1330,13 @@ function bindHomePageEvents(app: HTMLDivElement) {
 
   if (currentPage === "slide-edit" && selectedSlide) {
     bindSlideEditorEvents(app, selectedSlide);
+    return;
+  }
+
+  const selectedWhiteboard = getSelectedWhiteboard();
+
+  if (currentPage === "whiteboard-edit" && selectedWhiteboard) {
+    bindWhiteboardEditorEvents(app, selectedWhiteboard);
     return;
   }
 
@@ -1060,6 +1418,13 @@ function bindHomePageEvents(app: HTMLDivElement) {
     rememberEditorSelection(noteContentEditor);
   });
 
+  if (noteContentEditor) {
+    bindEditorOverlayDragEvents(noteContentEditor, () => {
+      selectedNote.content = noteContentEditor.innerHTML;
+      saveNotes();
+    });
+  }
+
   if (isTrialSession) {
     noteContentEditor?.addEventListener("paste", (event) => {
       const clipboardItems = event.clipboardData?.items;
@@ -1121,6 +1486,28 @@ function createSlide() {
   renderHomePage();
 }
 
+function createWhiteboard() {
+  const whiteboardNumber = whiteboards.length + 1;
+  const whiteboard: Whiteboard = {
+    id: crypto.randomUUID(),
+    title: `Whiteboard ${whiteboardNumber}`,
+    imageData: "",
+    elementsHtml: "",
+    createdAt: new Date(),
+    pinned: false,
+    order: getNextWhiteboardOrder(),
+    notebookId: null,
+    color: DEFAULT_WHITEBOARD_COLOR,
+  };
+
+  whiteboards.push(whiteboard);
+  saveWhiteboards();
+  selectedWhiteboardId = whiteboard.id;
+  activeHomeTab = "whiteboards";
+  currentPage = "whiteboard-edit";
+  renderHomePage();
+}
+
 function createNotebook(parentId: string | null = null) {
   if (isTrialSession) {
     return;
@@ -1152,6 +1539,10 @@ function getSelectedNote() {
 
 function getSelectedSlide() {
   return slides.find((slide) => slide.id === selectedSlideId) ?? null;
+}
+
+function getSelectedWhiteboard() {
+  return whiteboards.find((whiteboard) => whiteboard.id === selectedWhiteboardId) ?? null;
 }
 
 function getSlidePages(slide: Slide) {
@@ -1202,12 +1593,50 @@ function getMatchingSlides() {
   }
 
   const matchingSlides = slides.filter((slide) => {
-    const searchableContent = stripHtml(slide.content).toLowerCase();
+    const pageContent = getSlidePages(slide)
+      .map((page) => stripHtml(page.content))
+      .join(" ")
+      .toLowerCase();
+    const searchableContent = pageContent || stripHtml(slide.content).toLowerCase();
 
     return slide.title.toLowerCase().includes(normalizedQuery) || searchableContent.includes(normalizedQuery);
   });
 
   return getSortedSlides(matchingSlides);
+}
+
+function getMatchingWhiteboards() {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return getSortedWhiteboards(whiteboards);
+  }
+
+  return getSortedWhiteboards(
+    whiteboards.filter((whiteboard) => {
+      const overlayText = stripHtml(whiteboard.elementsHtml).toLowerCase();
+
+      return whiteboard.title.toLowerCase().includes(normalizedQuery) || overlayText.includes(normalizedQuery);
+    }),
+  );
+}
+
+function notebookMatchesSearch(notebook: Notebook) {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  if (notebook.name.toLowerCase().includes(normalizedQuery)) {
+    return true;
+  }
+
+  const hasMatchingNotes = getMatchingNotes().some((note) => note.notebookId === notebook.id);
+  const hasMatchingSlides = getMatchingSlides().some((slide) => slide.notebookId === notebook.id);
+  const hasMatchingWhiteboards = getMatchingWhiteboards().some((whiteboard) => whiteboard.notebookId === notebook.id);
+
+  return hasMatchingNotes || hasMatchingSlides || hasMatchingWhiteboards;
 }
 
 function renderNotesCollectionsOnly(app: HTMLDivElement) {
@@ -1218,6 +1647,7 @@ function renderNotesCollectionsOnly(app: HTMLDivElement) {
 
   const notesGrid = app.querySelector<HTMLDivElement>(".notes-grid");
   const slidesGrid = app.querySelector<HTMLDivElement>(".slides-grid");
+  const whiteboardsGrid = app.querySelector<HTMLDivElement>(".whiteboards-grid");
   const notebooksGrid = app.querySelector<HTMLDivElement>(".notebooks-grid");
 
   if (notesGrid) {
@@ -1228,17 +1658,24 @@ function renderNotesCollectionsOnly(app: HTMLDivElement) {
     slidesGrid.innerHTML = renderSlideCards();
   }
 
+  if (whiteboardsGrid) {
+    whiteboardsGrid.innerHTML = renderWhiteboardCards();
+  }
+
   if (notebooksGrid) {
     notebooksGrid.innerHTML = renderNotebooks();
   }
 
   bindNoteOpenEvents(app);
   bindSlideOpenEvents(app);
+  bindWhiteboardOpenEvents(app);
   bindPinNoteEvents(app);
   bindPinSlideEvents(app);
+  bindPinWhiteboardEvents(app);
   bindPinNotebookEvents(app);
   bindDeleteNoteEvents(app);
   bindDeleteSlideEvents(app);
+  bindDeleteWhiteboardEvents(app);
   bindCreateSubNotebookEvents(app);
   bindDeleteNotebookEvents(app);
   bindNotebookOpenEvents(app);
@@ -1246,6 +1683,7 @@ function renderNotesCollectionsOnly(app: HTMLDivElement) {
   bindColorEvents(app);
   bindDragNoteEvents(app);
   bindDragSlideEvents(app);
+  bindDragWhiteboardEvents(app);
 }
 
 function bindNoteOpenEvents(app: HTMLDivElement) {
@@ -1255,7 +1693,7 @@ function bindNoteOpenEvents(app: HTMLDivElement) {
         return;
       }
 
-      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id], .color-picker-label")) {
+      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id], [data-remove-note-from-notebook], .color-picker-label")) {
         return;
       }
 
@@ -1276,7 +1714,7 @@ function bindNoteOpenEvents(app: HTMLDivElement) {
 function bindSlideOpenEvents(app: HTMLDivElement) {
   app.querySelectorAll<HTMLElement>("[data-slide-id]").forEach((card) => {
     card.addEventListener("click", (event) => {
-      if ((event.target as HTMLElement).closest("[data-pin-slide-id], [data-delete-slide-id], .color-picker-label")) {
+      if ((event.target as HTMLElement).closest("[data-pin-slide-id], [data-delete-slide-id], [data-remove-slide-from-notebook], .color-picker-label")) {
         return;
       }
 
@@ -1294,10 +1732,31 @@ function bindSlideOpenEvents(app: HTMLDivElement) {
   });
 }
 
+function bindWhiteboardOpenEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLElement>("[data-whiteboard-id]").forEach((card) => {
+    card.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("[data-pin-whiteboard-id], [data-delete-whiteboard-id], [data-remove-whiteboard-from-notebook], .color-picker-label")) {
+        return;
+      }
+
+      openWhiteboard(card.dataset.whiteboardId ?? null);
+    });
+
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      openWhiteboard(card.dataset.whiteboardId ?? null);
+    });
+  });
+}
+
 function bindDragNoteEvents(app: HTMLDivElement) {
   app.querySelectorAll<HTMLElement>("[data-drag-note-id]").forEach((card) => {
     card.addEventListener("pointerdown", (event) => {
-      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id], .color-picker-label")) {
+      if ((event.target as HTMLElement).closest("[data-pin-note-id], [data-delete-note-id], [data-remove-note-from-notebook], .color-picker-label")) {
         return;
       }
 
@@ -1350,7 +1809,7 @@ function bindDragNoteEvents(app: HTMLDivElement) {
 function bindDragSlideEvents(app: HTMLDivElement) {
   app.querySelectorAll<HTMLElement>("[data-drag-slide-id]").forEach((card) => {
     card.addEventListener("pointerdown", (event) => {
-      if ((event.target as HTMLElement).closest("[data-pin-slide-id], [data-delete-slide-id], .color-picker-label")) {
+      if ((event.target as HTMLElement).closest("[data-pin-slide-id], [data-delete-slide-id], [data-remove-slide-from-notebook], .color-picker-label")) {
         return;
       }
 
@@ -1400,12 +1859,66 @@ function bindDragSlideEvents(app: HTMLDivElement) {
   });
 }
 
+function bindDragWhiteboardEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLElement>("[data-drag-whiteboard-id]").forEach((card) => {
+    card.addEventListener("pointerdown", (event) => {
+      if ((event.target as HTMLElement).closest("[data-pin-whiteboard-id], [data-delete-whiteboard-id], [data-remove-whiteboard-from-notebook], .color-picker-label")) {
+        return;
+      }
+
+      draggedWhiteboardId = card.dataset.dragWhiteboardId ?? null;
+
+      if (!draggedWhiteboardId) {
+        return;
+      }
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const distanceX = Math.abs(moveEvent.clientX - startX);
+        const distanceY = Math.abs(moveEvent.clientY - startY);
+
+        if (!dragMoved && distanceX + distanceY > 6) {
+          dragMoved = true;
+          card.classList.add("dragging");
+        }
+
+        if (dragMoved) {
+          moveEvent.preventDefault();
+          markPointerDropTarget(app, moveEvent.clientX, moveEvent.clientY);
+        }
+      };
+
+      const handlePointerUp = (upEvent: PointerEvent) => {
+        document.removeEventListener("pointermove", handlePointerMove);
+        document.removeEventListener("pointerup", handlePointerUp);
+        card.classList.remove("dragging");
+
+        if (dragMoved) {
+          dropPointerDraggedWhiteboard(app, upEvent.clientX, upEvent.clientY);
+        }
+
+        clearDropTargets(app);
+        draggedWhiteboardId = null;
+        setTimeout(() => {
+          dragMoved = false;
+        }, 0);
+      };
+
+      document.addEventListener("pointermove", handlePointerMove);
+      document.addEventListener("pointerup", handlePointerUp, { once: true });
+    });
+  });
+}
+
 function markPointerDropTarget(app: HTMLDivElement, clientX: number, clientY: number) {
   clearDropTargets(app);
 
   const target = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
   const targetCard = target?.closest<HTMLElement>("[data-drag-note-id]");
   const targetSlideCard = target?.closest<HTMLElement>("[data-drag-slide-id]");
+  const targetWhiteboardCard = target?.closest<HTMLElement>("[data-drag-whiteboard-id]");
   const targetNotebook = target?.closest<HTMLElement>("[data-notebook-drop-id]");
 
   if (targetCard && targetCard.dataset.dragNoteId !== draggedNoteId) {
@@ -1415,6 +1928,11 @@ function markPointerDropTarget(app: HTMLDivElement, clientX: number, clientY: nu
 
   if (targetSlideCard && targetSlideCard.dataset.dragSlideId !== draggedSlideId) {
     targetSlideCard.classList.add("drop-target");
+    return;
+  }
+
+  if (targetWhiteboardCard && targetWhiteboardCard.dataset.dragWhiteboardId !== draggedWhiteboardId) {
+    targetWhiteboardCard.classList.add("drop-target");
     return;
   }
 
@@ -1451,6 +1969,23 @@ function dropPointerDraggedSlide(app: HTMLDivElement, clientX: number, clientY: 
 
   if (targetNotebook) {
     moveSlideToNotebook(draggedSlideId, targetNotebook.dataset.notebookDropId || null);
+    renderNotesCollectionsOnly(app);
+  }
+}
+
+function dropPointerDraggedWhiteboard(app: HTMLDivElement, clientX: number, clientY: number) {
+  const target = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+  const targetCard = target?.closest<HTMLElement>("[data-drag-whiteboard-id]");
+  const targetNotebook = target?.closest<HTMLElement>("[data-notebook-drop-id]");
+
+  if (targetCard && targetCard.dataset.dragWhiteboardId !== draggedWhiteboardId) {
+    reorderWhiteboard(draggedWhiteboardId, targetCard.dataset.dragWhiteboardId ?? null);
+    renderNotesCollectionsOnly(app);
+    return;
+  }
+
+  if (targetNotebook) {
+    moveWhiteboardToNotebook(draggedWhiteboardId, targetNotebook.dataset.notebookDropId || null);
     renderNotesCollectionsOnly(app);
   }
 }
@@ -1505,6 +2040,30 @@ function reorderSlide(sourceSlideId: string | null, targetSlideId: string | null
   saveSlides();
 }
 
+function reorderWhiteboard(sourceWhiteboardId: string | null, targetWhiteboardId: string | null) {
+  if (!sourceWhiteboardId || !targetWhiteboardId || sourceWhiteboardId === targetWhiteboardId) {
+    return;
+  }
+
+  const sortedWhiteboards = getSortedWhiteboards(whiteboards);
+  const sourceIndex = sortedWhiteboards.findIndex((whiteboard) => whiteboard.id === sourceWhiteboardId);
+  const targetIndex = sortedWhiteboards.findIndex((whiteboard) => whiteboard.id === targetWhiteboardId);
+
+  if (sourceIndex === -1 || targetIndex === -1) {
+    return;
+  }
+
+  const [movedWhiteboard] = sortedWhiteboards.splice(sourceIndex, 1);
+  movedWhiteboard.notebookId = sortedWhiteboards[targetIndex]?.notebookId ?? null;
+  sortedWhiteboards.splice(targetIndex, 0, movedWhiteboard);
+
+  sortedWhiteboards.forEach((whiteboard, index) => {
+    whiteboard.order = index;
+  });
+
+  saveWhiteboards();
+}
+
 function clearDropTargets(app: HTMLDivElement) {
   app.querySelectorAll(".drop-target").forEach((target) => {
     target.classList.remove("drop-target");
@@ -1541,6 +2100,21 @@ function moveSlideToNotebook(slideId: string | null, notebookId: string | null) 
   saveSlides();
 }
 
+function moveWhiteboardToNotebook(whiteboardId: string | null, notebookId: string | null) {
+  if (isTrialSession) {
+    return;
+  }
+
+  const whiteboard = whiteboards.find((item) => item.id === whiteboardId);
+
+  if (!whiteboard) {
+    return;
+  }
+
+  whiteboard.notebookId = notebookId;
+  saveWhiteboards();
+}
+
 function openNote(noteId: string | null) {
   selectedNoteId = noteId;
   currentPage = "edit";
@@ -1553,6 +2127,13 @@ function openSlide(slideId: string | null) {
   selectedSlidePageId = slide ? getSlidePages(slide)[0].id : null;
   activeHomeTab = "slides";
   currentPage = "slide-edit";
+  renderHomePage();
+}
+
+function openWhiteboard(whiteboardId: string | null) {
+  selectedWhiteboardId = whiteboardId;
+  activeHomeTab = "whiteboards";
+  currentPage = "whiteboard-edit";
   renderHomePage();
 }
 
@@ -1583,6 +2164,22 @@ function bindPinSlideEvents(app: HTMLDivElement) {
 
       slide.pinned = !slide.pinned;
       saveSlides();
+      renderNotesCollectionsOnly(app);
+    });
+  });
+}
+
+function bindPinWhiteboardEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLButtonElement>("[data-pin-whiteboard-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const whiteboard = whiteboards.find((item) => item.id === button.dataset.pinWhiteboardId);
+
+      if (!whiteboard) {
+        return;
+      }
+
+      whiteboard.pinned = !whiteboard.pinned;
+      saveWhiteboards();
       renderNotesCollectionsOnly(app);
     });
   });
@@ -1628,6 +2225,20 @@ function bindDeleteSlideEvents(app: HTMLDivElement) {
       }
 
       deleteSelectedSlide(slide);
+    });
+  });
+}
+
+function bindDeleteWhiteboardEvents(app: HTMLDivElement) {
+  app.querySelectorAll<HTMLButtonElement>("[data-delete-whiteboard-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const whiteboard = whiteboards.find((item) => item.id === button.dataset.deleteWhiteboardId);
+
+      if (!whiteboard) {
+        return;
+      }
+
+      deleteSelectedWhiteboard(whiteboard);
     });
   });
 }
@@ -1683,6 +2294,30 @@ function bindNotebookOpenEvents(app: HTMLDivElement) {
       }
 
       openedNotebookId = null;
+      renderHomePage();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-remove-note-from-notebook]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      moveNoteToNotebook(button.dataset.removeNoteFromNotebook ?? null, null);
+      renderHomePage();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-remove-slide-from-notebook]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      moveSlideToNotebook(button.dataset.removeSlideFromNotebook ?? null, null);
+      renderHomePage();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-remove-whiteboard-from-notebook]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      moveWhiteboardToNotebook(button.dataset.removeWhiteboardFromNotebook ?? null, null);
       renderHomePage();
     });
   });
@@ -1782,6 +2417,20 @@ function bindColorEvents(app: HTMLDivElement) {
       renderNotesCollectionsOnly(app);
     });
   });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-whiteboard-color-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const whiteboard = whiteboards.find((item) => item.id === button.dataset.whiteboardColorId);
+
+      if (!whiteboard) {
+        return;
+      }
+
+      whiteboard.color = getPresetColorId(button.dataset.colorValue);
+      saveWhiteboards();
+      renderNotesCollectionsOnly(app);
+    });
+  });
 }
 
 function deleteNotebook(notebook: Notebook) {
@@ -1819,9 +2468,16 @@ function deleteNotebook(notebook: Notebook) {
     }
   });
 
+  whiteboards.forEach((whiteboard) => {
+    if (whiteboard.notebookId && notebookIdsToDelete.includes(whiteboard.notebookId)) {
+      whiteboard.notebookId = null;
+    }
+  });
+
   saveNotebooks();
   saveNotes();
   saveSlides();
+  saveWhiteboards();
   renderHomePage();
 }
 
@@ -1863,6 +2519,16 @@ function getSortedSlides(slidesToSort: Slide[]) {
   });
 }
 
+function getSortedWhiteboards(whiteboardsToSort: Whiteboard[]) {
+  return [...whiteboardsToSort].sort((first, second) => {
+    if (first.pinned !== second.pinned) {
+      return first.pinned ? -1 : 1;
+    }
+
+    return first.order - second.order;
+  });
+}
+
 function renameSelectedNote(note: Note) {
   const newTitle = normalizeNoteTitle(window.prompt("Rename note", note.title) ?? "");
 
@@ -1884,6 +2550,18 @@ function renameSelectedSlide(slide: Slide) {
 
   slide.title = newTitle;
   saveSlides();
+  renderHomePage();
+}
+
+function renameSelectedWhiteboard(whiteboard: Whiteboard) {
+  const newTitle = normalizeNoteTitle(window.prompt("Rename whiteboard", whiteboard.title) ?? "");
+
+  if (!newTitle) {
+    return;
+  }
+
+  whiteboard.title = newTitle;
+  saveWhiteboards();
   renderHomePage();
 }
 
@@ -2062,6 +2740,27 @@ function deleteSelectedSlide(slide: Slide) {
   renderHomePage();
 }
 
+function deleteSelectedWhiteboard(whiteboard: Whiteboard) {
+  const shouldDelete = window.confirm(`Delete "${whiteboard.title}"?`);
+
+  if (!shouldDelete) {
+    return;
+  }
+
+  const whiteboardIndex = whiteboards.findIndex((item) => item.id === whiteboard.id);
+
+  if (whiteboardIndex === -1) {
+    return;
+  }
+
+  whiteboards.splice(whiteboardIndex, 1);
+  saveWhiteboards();
+  selectedWhiteboardId = null;
+  activeHomeTab = "whiteboards";
+  currentPage = "notes";
+  renderHomePage();
+}
+
 function bindSlideEditorEvents(app: HTMLDivElement, selectedSlide: Slide) {
   const selectedPage = getSelectedSlidePage(selectedSlide);
   restoreSlideThumbnailScroll(app);
@@ -2174,14 +2873,402 @@ function bindSlideEditorEvents(app: HTMLDivElement, selectedSlide: Slide) {
   bindSlideTextBoxDragEvents(app, selectedSlide);
 }
 
-function bindSlideTextBoxDragEvents(app: HTMLDivElement, selectedSlide: Slide) {
-  const canvas = app.querySelector<HTMLDivElement>("[data-slide-content]");
+function fillWhiteboardCanvas(context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
+  context.globalCompositeOperation = "source-over";
+  context.fillStyle = WHITEBOARD_BACKGROUND;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function persistWhiteboardState(
+  selectedWhiteboard: Whiteboard,
+  canvas: HTMLCanvasElement,
+  overlay: HTMLDivElement | null,
+) {
+  selectedWhiteboard.imageData = canvas.toDataURL("image/png");
+
+  if (overlay) {
+    selectedWhiteboard.elementsHtml = overlay.innerHTML;
+  }
+
+  saveWhiteboards();
+}
+
+function restoreWhiteboardCanvasImage(
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  imageData: string,
+  onReady?: () => void,
+) {
+  fillWhiteboardCanvas(context, canvas);
+
+  if (!imageData) {
+    onReady?.();
+    return;
+  }
+
+  const image = new Image();
+  image.addEventListener("load", () => {
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    onReady?.();
+  });
+  image.src = imageData;
+}
+
+function drawWhiteboardShape(
+  context: CanvasRenderingContext2D,
+  shape: EditorShapeKind,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  color: string,
+  lineWidth: number,
+) {
+  context.globalCompositeOperation = "source-over";
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = lineWidth;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  const width = endX - startX;
+  const height = endY - startY;
+  const centerX = startX + width / 2;
+  const centerY = startY + height / 2;
+
+  if (shape === "line") {
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
+    context.stroke();
+    return;
+  }
+
+  if (shape === "arrow") {
+    const angle = Math.atan2(endY - startY, endX - startX);
+    const headLength = Math.max(12, lineWidth * 3);
+
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(endX, endY);
+    context.lineTo(
+      endX - headLength * Math.cos(angle - Math.PI / 6),
+      endY - headLength * Math.sin(angle - Math.PI / 6),
+    );
+    context.lineTo(
+      endX - headLength * Math.cos(angle + Math.PI / 6),
+      endY - headLength * Math.sin(angle + Math.PI / 6),
+    );
+    context.closePath();
+    context.fill();
+    return;
+  }
+
+  if (shape === "rectangle") {
+    context.strokeRect(startX, startY, width, height);
+    return;
+  }
+
+  if (shape === "triangle") {
+    context.beginPath();
+    context.moveTo(centerX, startY);
+    context.lineTo(endX, endY);
+    context.lineTo(startX, endY);
+    context.closePath();
+    context.stroke();
+    return;
+  }
+
+  if (shape === "diamond") {
+    context.beginPath();
+    context.moveTo(centerX, startY);
+    context.lineTo(endX, centerY);
+    context.lineTo(centerX, endY);
+    context.lineTo(startX, centerY);
+    context.closePath();
+    context.stroke();
+    return;
+  }
+
+  if (shape === "star") {
+    const outerRadius = Math.max(Math.abs(width), Math.abs(height)) / 2;
+    const innerRadius = outerRadius * 0.45;
+
+    context.beginPath();
+
+    for (let pointIndex = 0; pointIndex < 10; pointIndex += 1) {
+      const radius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
+      const angle = -Math.PI / 2 + (pointIndex * Math.PI) / 5;
+      const pointX = centerX + radius * Math.cos(angle);
+      const pointY = centerY + radius * Math.sin(angle);
+
+      if (pointIndex === 0) {
+        context.moveTo(pointX, pointY);
+      } else {
+        context.lineTo(pointX, pointY);
+      }
+    }
+
+    context.closePath();
+    context.stroke();
+    return;
+  }
+
+  const radiusX = Math.abs(width) / 2;
+  const radiusY = Math.abs(height) / 2;
+
+  context.beginPath();
+  context.ellipse(centerX, centerY, Math.max(radiusX, 1), Math.max(radiusY, 1), 0, 0, Math.PI * 2);
+  context.stroke();
+}
+
+function bindWhiteboardEditorEvents(app: HTMLDivElement, selectedWhiteboard: Whiteboard) {
+  app.querySelector<HTMLInputElement>("[data-whiteboard-title]")?.addEventListener("input", (event) => {
+    const input = event.target as HTMLInputElement;
+    const title = limitNoteTitle(input.value);
+
+    if (input.value !== title) {
+      input.value = title;
+    }
+
+    selectedWhiteboard.title = title || "Untitled whiteboard";
+    updateNoteTitleSize(input);
+    saveWhiteboards();
+  });
+
+  app.querySelector("[data-rename-whiteboard]")?.addEventListener("click", () => {
+    renameSelectedWhiteboard(selectedWhiteboard);
+  });
+
+  app.querySelector("[data-delete-whiteboard]")?.addEventListener("click", () => {
+    deleteSelectedWhiteboard(selectedWhiteboard);
+  });
+
+  const canvas = app.querySelector<HTMLCanvasElement>("[data-whiteboard-canvas]");
+  const overlay = app.querySelector<HTMLDivElement>("[data-whiteboard-overlay]");
+  const stage = app.querySelector<HTMLDivElement>("[data-whiteboard-stage]");
+  const context = canvas?.getContext("2d");
+
+  if (!canvas || !context || !overlay || !stage) {
+    return;
+  }
+
+  let tool: WhiteboardTool = "pen";
+  let penColor = WHITEBOARD_DEFAULT_PEN_COLOR;
+  let penSize: number = WHITEBOARD_PEN_SIZES[1].value;
+  let isDrawing = false;
+  let shapeStart: { x: number; y: number } | null = null;
+  let shapeSnapshot: HTMLImageElement | null = null;
+
+  const setActiveToolButton = (activeTool: WhiteboardTool) => {
+    app.querySelectorAll<HTMLButtonElement>("[data-whiteboard-tool]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.whiteboardTool === activeTool);
+    });
+    app.querySelector<HTMLElement>(".editor-shapes-menu > .format-button")?.classList.toggle("active", isShapeTool(activeTool));
+    stage.dataset.whiteboardActiveTool = activeTool;
+    canvas.style.cursor = activeTool === "text-box" ? "text" : "crosshair";
+  };
+
+  const getPointerPosition = (event: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  };
+
+  const getOverlayPosition = (event: { clientX: number; clientY: number }) => {
+    const rect = overlay.getBoundingClientRect();
+
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const restoreShapeSnapshot = () => {
+    fillWhiteboardCanvas(context, canvas);
+
+    if (shapeSnapshot) {
+      context.drawImage(shapeSnapshot, 0, 0, canvas.width, canvas.height);
+    }
+  };
+
+  restoreWhiteboardCanvasImage(context, canvas, selectedWhiteboard.imageData, () => {
+    shapeSnapshot = new Image();
+    shapeSnapshot.src = canvas.toDataURL("image/png");
+  });
+
+  bindWhiteboardTextBoxDragEvents(app, selectedWhiteboard, overlay);
+
+  app.querySelectorAll<HTMLButtonElement>("[data-whiteboard-tool]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextTool = button.dataset.whiteboardTool as WhiteboardTool | undefined;
+
+      if (!nextTool) {
+        return;
+      }
+
+      tool = nextTool;
+      setActiveToolButton(nextTool);
+      closeDropdowns(app);
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-whiteboard-pen-color]").forEach((button) => {
+    button.addEventListener("click", () => {
+      penColor = button.dataset.whiteboardPenColor ?? WHITEBOARD_DEFAULT_PEN_COLOR;
+      app.querySelectorAll("[data-whiteboard-pen-color]").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+
+      if (tool === "eraser") {
+        tool = "pen";
+        setActiveToolButton("pen");
+      }
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-whiteboard-pen-size]").forEach((button) => {
+    button.addEventListener("click", () => {
+      penSize = Number(button.dataset.whiteboardPenSize) || WHITEBOARD_PEN_SIZES[1].value;
+      app.querySelectorAll("[data-whiteboard-pen-size]").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+    });
+  });
+
+  app.querySelector("[data-clear-whiteboard]")?.addEventListener("click", () => {
+    if (!window.confirm("Clear this whiteboard? Drawings, shapes, and text boxes will be removed.")) {
+      return;
+    }
+
+    fillWhiteboardCanvas(context, canvas);
+    overlay.innerHTML = "";
+    shapeSnapshot = new Image();
+    shapeSnapshot.src = canvas.toDataURL("image/png");
+    persistWhiteboardState(selectedWhiteboard, canvas, overlay);
+    bindWhiteboardTextBoxDragEvents(app, selectedWhiteboard, overlay);
+  });
+
+  overlay.addEventListener("input", () => {
+    persistWhiteboardState(selectedWhiteboard, canvas, overlay);
+  });
+
+  overlay.addEventListener("click", (event) => {
+    if (tool !== "text-box") {
+      return;
+    }
+
+    if ((event.target as HTMLElement).closest(".whiteboard-text-box")) {
+      return;
+    }
+
+    const position = getOverlayPosition(event);
+    const textBox = document.createElement("div");
+
+    textBox.className = "whiteboard-text-box";
+    textBox.contentEditable = "true";
+    textBox.style.left = `${Math.round(position.x)}px`;
+    textBox.style.top = `${Math.round(position.y)}px`;
+    textBox.textContent = "Text box";
+    overlay.append(textBox);
+    textBox.focus();
+    persistWhiteboardState(selectedWhiteboard, canvas, overlay);
+    bindWhiteboardTextBoxDragEvents(app, selectedWhiteboard, overlay);
+  });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (tool === "text-box") {
+      return;
+    }
+
+    if ((event.target as HTMLElement).closest(".whiteboard-text-box")) {
+      return;
+    }
+
+    const position = getPointerPosition(event);
+    canvas.setPointerCapture(event.pointerId);
+
+    if (isShapeTool(tool)) {
+      shapeStart = position;
+      shapeSnapshot = new Image();
+      shapeSnapshot.src = canvas.toDataURL("image/png");
+      return;
+    }
+
+    isDrawing = true;
+    context.beginPath();
+    context.moveTo(position.x, position.y);
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    const position = getPointerPosition(event);
+
+    if (shapeStart && isShapeTool(tool)) {
+      restoreShapeSnapshot();
+      drawWhiteboardShape(context, tool, shapeStart.x, shapeStart.y, position.x, position.y, penColor, penSize);
+      return;
+    }
+
+    if (!isDrawing) {
+      return;
+    }
+
+    context.globalCompositeOperation = "source-over";
+    context.lineWidth = tool === "eraser" ? WHITEBOARD_ERASER_SIZE : penSize;
+    context.strokeStyle = tool === "eraser" ? WHITEBOARD_BACKGROUND : penColor;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineTo(position.x, position.y);
+    context.stroke();
+  });
+
+  const finishPointer = (event: PointerEvent) => {
+    if (shapeStart && isShapeTool(tool)) {
+      const position = getPointerPosition(event);
+      restoreShapeSnapshot();
+      drawWhiteboardShape(context, tool, shapeStart.x, shapeStart.y, position.x, position.y, penColor, penSize);
+      shapeStart = null;
+      shapeSnapshot = new Image();
+      shapeSnapshot.src = canvas.toDataURL("image/png");
+      persistWhiteboardState(selectedWhiteboard, canvas, overlay);
+      canvas.releasePointerCapture(event.pointerId);
+      return;
+    }
+
+    if (!isDrawing) {
+      return;
+    }
+
+    isDrawing = false;
+    canvas.releasePointerCapture(event.pointerId);
+    shapeSnapshot = new Image();
+    shapeSnapshot.src = canvas.toDataURL("image/png");
+    persistWhiteboardState(selectedWhiteboard, canvas, overlay);
+  };
+
+  canvas.addEventListener("pointerup", finishPointer);
+  canvas.addEventListener("pointercancel", finishPointer);
+
+  setActiveToolButton(tool);
+}
+
+function bindWhiteboardTextBoxDragEvents(
+  app: HTMLDivElement,
+  selectedWhiteboard: Whiteboard,
+  overlay: HTMLDivElement,
+) {
+  const canvas = app.querySelector<HTMLCanvasElement>("[data-whiteboard-canvas]");
 
   if (!canvas) {
     return;
   }
 
-  canvas.querySelectorAll<HTMLElement>(".slide-text-box").forEach((textBox) => {
+  overlay.querySelectorAll<HTMLElement>(".whiteboard-text-box").forEach((textBox) => {
     const draggableTextBox = textBox as HTMLElement & { noteflowDragBound?: boolean };
 
     if (draggableTextBox.noteflowDragBound) {
@@ -2189,7 +3276,6 @@ function bindSlideTextBoxDragEvents(app: HTMLDivElement, selectedSlide: Slide) {
     }
 
     draggableTextBox.noteflowDragBound = true;
-    textBox.removeAttribute("data-drag-bound");
     textBox.setAttribute("contenteditable", "true");
 
     textBox.addEventListener("pointerdown", (event) => {
@@ -2197,12 +3283,12 @@ function bindSlideTextBoxDragEvents(app: HTMLDivElement, selectedSlide: Slide) {
         return;
       }
 
-      const canvasRect = canvas.getBoundingClientRect();
+      const overlayRect = overlay.getBoundingClientRect();
       const textBoxRect = textBox.getBoundingClientRect();
       const startX = event.clientX;
       const startY = event.clientY;
-      const startLeft = textBoxRect.left - canvasRect.left + canvas.scrollLeft;
-      const startTop = textBoxRect.top - canvasRect.top + canvas.scrollTop;
+      const startLeft = textBoxRect.left - overlayRect.left;
+      const startTop = textBoxRect.top - overlayRect.top;
       let didDrag = false;
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -2217,8 +3303,8 @@ function bindSlideTextBoxDragEvents(app: HTMLDivElement, selectedSlide: Slide) {
         moveEvent.preventDefault();
         textBox.classList.add("dragging-text-box");
 
-        const maxLeft = Math.max(0, canvas.scrollWidth - textBox.offsetWidth);
-        const maxTop = Math.max(0, canvas.scrollHeight - textBox.offsetHeight);
+        const maxLeft = Math.max(0, overlay.clientWidth - textBox.offsetWidth);
+        const maxTop = Math.max(0, overlay.clientHeight - textBox.offsetHeight);
         const nextLeft = Math.min(maxLeft, Math.max(0, startLeft + deltaX));
         const nextTop = Math.min(maxTop, Math.max(0, startTop + deltaY));
 
@@ -2232,16 +3318,93 @@ function bindSlideTextBoxDragEvents(app: HTMLDivElement, selectedSlide: Slide) {
         textBox.classList.remove("dragging-text-box");
 
         if (didDrag) {
-          const selectedPage = getSelectedSlidePage(selectedSlide);
-          selectedPage.content = canvas.innerHTML;
-          syncSlideDeckContent(selectedSlide);
-          saveSlides();
+          selectedWhiteboard.elementsHtml = overlay.innerHTML;
+          saveWhiteboards();
         }
       };
 
       document.addEventListener("pointermove", handlePointerMove);
       document.addEventListener("pointerup", handlePointerUp, { once: true });
     });
+  });
+}
+
+function bindEditorOverlayDragEvents(container: HTMLElement, onPersist: () => void) {
+  container.querySelectorAll<HTMLElement>(".editor-shape, .slide-text-box").forEach((item) => {
+    const draggableItem = item as HTMLElement & { noteflowDragBound?: boolean };
+
+    if (draggableItem.noteflowDragBound) {
+      return;
+    }
+
+    draggableItem.noteflowDragBound = true;
+
+    if (item.classList.contains("slide-text-box")) {
+      item.setAttribute("contenteditable", "true");
+    }
+
+    item.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const itemRect = item.getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startLeft = itemRect.left - containerRect.left + container.scrollLeft;
+      const startTop = itemRect.top - containerRect.top + container.scrollTop;
+      let didDrag = false;
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
+
+        if (!didDrag && Math.abs(deltaX) + Math.abs(deltaY) < 4) {
+          return;
+        }
+
+        didDrag = true;
+        moveEvent.preventDefault();
+        item.classList.add("dragging-text-box");
+
+        const maxLeft = Math.max(0, container.scrollWidth - item.offsetWidth);
+        const maxTop = Math.max(0, container.scrollHeight - item.offsetHeight);
+        const nextLeft = Math.min(maxLeft, Math.max(0, startLeft + deltaX));
+        const nextTop = Math.min(maxTop, Math.max(0, startTop + deltaY));
+
+        item.style.left = `${Math.round(nextLeft)}px`;
+        item.style.top = `${Math.round(nextTop)}px`;
+      };
+
+      const handlePointerUp = () => {
+        document.removeEventListener("pointermove", handlePointerMove);
+        document.removeEventListener("pointerup", handlePointerUp);
+        item.classList.remove("dragging-text-box");
+
+        if (didDrag) {
+          onPersist();
+        }
+      };
+
+      document.addEventListener("pointermove", handlePointerMove);
+      document.addEventListener("pointerup", handlePointerUp, { once: true });
+    });
+  });
+}
+
+function bindSlideTextBoxDragEvents(app: HTMLDivElement, selectedSlide: Slide) {
+  const canvas = app.querySelector<HTMLDivElement>("[data-slide-content]");
+
+  if (!canvas) {
+    return;
+  }
+
+  bindEditorOverlayDragEvents(canvas, () => {
+    const selectedPage = getSelectedSlidePage(selectedSlide);
+    selectedPage.content = canvas.innerHTML;
+    syncSlideDeckContent(selectedSlide);
+    saveSlides();
   });
 }
 
@@ -2327,9 +3490,26 @@ function applyTextFormatting(format: string | undefined, note: Note) {
     );
   }
 
+  if (format?.startsWith("shape-")) {
+    const shape = format.replace("shape-", "") as EditorShapeKind;
+
+    if (EDITOR_SHAPE_IDS.has(shape)) {
+      insertEditorShape(shape, editor);
+    }
+  }
+
   note.content = editor.innerHTML;
   rememberEditorSelection(editor);
   saveNotes();
+
+  const app = document.querySelector<HTMLDivElement>("#app");
+
+  if (app) {
+    bindEditorOverlayDragEvents(editor, () => {
+      note.content = editor.innerHTML;
+      saveNotes();
+    });
+  }
 }
 
 function applySlideTool(tool: string | undefined, slide: Slide) {
@@ -2367,6 +3547,10 @@ function applySlideTool(tool: string | undefined, slide: Slide) {
     applyTextSizeFormatting("title", editor);
   }
 
+  if (tool && EDITOR_SHAPE_IDS.has(tool)) {
+    insertEditorShape(tool as EditorShapeKind, editor);
+  }
+
   selectedPage.content = editor.innerHTML;
   syncSlideDeckContent(slide);
   rememberEditorSelection(editor);
@@ -2374,7 +3558,12 @@ function applySlideTool(tool: string | undefined, slide: Slide) {
   const app = document.querySelector<HTMLDivElement>("#app");
 
   if (app) {
-    bindSlideTextBoxDragEvents(app, slide);
+    bindEditorOverlayDragEvents(editor, () => {
+      const selectedPageAfterMove = getSelectedSlidePage(slide);
+      selectedPageAfterMove.content = editor.innerHTML;
+      syncSlideDeckContent(slide);
+      saveSlides();
+    });
   }
 }
 
@@ -2550,6 +3739,7 @@ async function signOut() {
   selectedNoteId = null;
   selectedSlideId = null;
   selectedSlidePageId = null;
+  selectedWhiteboardId = null;
   activeHomeTab = "notes";
   currentPage = "auth";
   authMode = "sign-in";
@@ -2564,7 +3754,7 @@ async function deleteAccount() {
   }
 
   const confirmed = window.confirm(
-    "Delete your NoteFlow account permanently?\n\nYour sign-in will be removed and you cannot undo this. Notes, slides, and notebooks on this device will also be cleared.",
+    "Delete your NoteFlow account permanently?\n\nYour sign-in will be removed and you cannot undo this. Notes, slides, whiteboards, and notebooks on this device will also be cleared.",
   );
 
   if (!confirmed) {
@@ -2617,6 +3807,7 @@ async function deleteAccount() {
   selectedNoteId = null;
   selectedSlideId = null;
   selectedSlidePageId = null;
+  selectedWhiteboardId = null;
   activeHomeTab = "notes";
   searchQuery = "";
   currentPage = "auth";
@@ -2673,10 +3864,12 @@ function isMissingAccountDeletionSetup(message: string, code?: string) {
 function clearLocalAppData() {
   localStorage.removeItem(NOTES_STORAGE_KEY);
   localStorage.removeItem(SLIDES_STORAGE_KEY);
+  localStorage.removeItem(WHITEBOARDS_STORAGE_KEY);
   localStorage.removeItem(NOTEBOOKS_STORAGE_KEY);
   localStorage.removeItem(SETTINGS_STORAGE_KEY);
   notes.splice(0, notes.length);
   slides.splice(0, slides.length);
+  whiteboards.splice(0, whiteboards.length);
   notebooks.splice(0, notebooks.length);
   appSettings = {
     theme: "light",
@@ -2726,10 +3919,12 @@ function startTrialSession() {
   authMessage = "";
   notes.splice(0, notes.length);
   slides.splice(0, slides.length);
+  whiteboards.splice(0, whiteboards.length);
   notebooks.splice(0, notebooks.length);
   selectedNoteId = null;
   selectedSlideId = null;
   selectedSlidePageId = null;
+  selectedWhiteboardId = null;
   activeHomeTab = "notes";
   searchQuery = "";
   currentPage = "notes";
@@ -2743,6 +3938,7 @@ function endTrialSession() {
   selectedNoteId = null;
   selectedSlideId = null;
   selectedSlidePageId = null;
+  selectedWhiteboardId = null;
   activeHomeTab = "notes";
   searchQuery = "";
   currentPage = "auth";
@@ -2756,6 +3952,8 @@ function reloadPersistedData() {
   notes.splice(0, notes.length, ...savedNotes);
   const savedSlides = loadSavedSlides();
   slides.splice(0, slides.length, ...savedSlides);
+  const savedWhiteboards = loadSavedWhiteboards();
+  whiteboards.splice(0, whiteboards.length, ...savedWhiteboards);
   const savedNotebooks = loadSavedNotebooks();
   notebooks.splice(0, notebooks.length, ...savedNotebooks);
 }
@@ -2900,6 +4098,32 @@ function loadSavedSlides() {
   }
 }
 
+function loadSavedWhiteboards() {
+  const savedWhiteboards = localStorage.getItem(WHITEBOARDS_STORAGE_KEY);
+
+  if (!savedWhiteboards) {
+    return [];
+  }
+
+  try {
+    const parsedWhiteboards = JSON.parse(savedWhiteboards) as StoredWhiteboard[];
+
+    return parsedWhiteboards.map((whiteboard, index) => ({
+      ...whiteboard,
+      title: normalizeNoteTitle(whiteboard.title) || "Untitled whiteboard",
+      imageData: typeof whiteboard.imageData === "string" ? whiteboard.imageData : "",
+      elementsHtml: typeof whiteboard.elementsHtml === "string" ? whiteboard.elementsHtml : "",
+      createdAt: new Date(whiteboard.createdAt),
+      pinned: Boolean(whiteboard.pinned),
+      order: typeof whiteboard.order === "number" ? whiteboard.order : index,
+      notebookId: typeof whiteboard.notebookId === "string" ? whiteboard.notebookId : null,
+      color: getPresetColorId(whiteboard.color),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function loadSavedNotebooks() {
   const savedNotebooks = localStorage.getItem(NOTEBOOKS_STORAGE_KEY);
 
@@ -2951,6 +4175,14 @@ function getNextSlideOrder() {
   return Math.max(...slides.map((slide) => slide.order)) + 1;
 }
 
+function getNextWhiteboardOrder() {
+  if (whiteboards.length === 0) {
+    return 0;
+  }
+
+  return Math.max(...whiteboards.map((whiteboard) => whiteboard.order)) + 1;
+}
+
 function saveNotes() {
   if (isTrialSession) {
     return;
@@ -2975,6 +4207,19 @@ function saveSlides() {
   }));
 
   localStorage.setItem(SLIDES_STORAGE_KEY, JSON.stringify(slidesToStore));
+}
+
+function saveWhiteboards() {
+  if (isTrialSession) {
+    return;
+  }
+
+  const whiteboardsToStore: StoredWhiteboard[] = whiteboards.map((whiteboard) => ({
+    ...whiteboard,
+    createdAt: whiteboard.createdAt.toISOString(),
+  }));
+
+  localStorage.setItem(WHITEBOARDS_STORAGE_KEY, JSON.stringify(whiteboardsToStore));
 }
 
 function loadSavedSettings(): AppSettings {
@@ -3044,7 +4289,7 @@ function getStableRandomValue(value: string) {
   }, 7);
 }
 
-function renderColorOptions(targetType: "note" | "notebook" | "slide", targetId: string, selectedColor: string) {
+function renderColorOptions(targetType: "note" | "notebook" | "slide" | "whiteboard", targetId: string, selectedColor: string) {
   const selectedPreset = getPresetColorId(selectedColor);
 
   return COLOR_PRESETS.map((preset) => {
@@ -3053,7 +4298,9 @@ function renderColorOptions(targetType: "note" | "notebook" | "slide", targetId:
         ? `data-note-color-id="${targetId}"`
         : targetType === "slide"
           ? `data-slide-color-id="${targetId}"`
-          : `data-notebook-color-id="${targetId}"`;
+          : targetType === "whiteboard"
+            ? `data-whiteboard-color-id="${targetId}"`
+            : `data-notebook-color-id="${targetId}"`;
     const selectedClass = preset.id === selectedPreset ? "selected" : "";
 
     return `

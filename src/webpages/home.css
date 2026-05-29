@@ -253,7 +253,7 @@
   align-self: center;
   width: min(860px, 100%);
   display: grid;
-  grid-template-columns: 1fr 240px;
+  grid-template-columns: 1fr;
   gap: 16px;
   padding: 14px;
   border: 2px solid rgba(15, 23, 42, 0.18);
@@ -485,10 +485,33 @@
   gap: 12px;
 }
 
-.notebook-notes .note-card,
-.notebook-notes .slide-card {
-  min-height: 70px;
-  font-size: 1rem;
+.notebook-items-grid .note-card,
+.notebook-items-grid .slide-card,
+.notebook-items-grid .whiteboard-card {
+  aspect-ratio: auto;
+  min-height: 78px;
+  height: auto;
+  align-content: start;
+  gap: 6px;
+  padding: 12px;
+  font-size: 1.05rem;
+}
+
+.notebook-items-grid .slide-card-preview {
+  min-height: 0;
+  place-items: start;
+  text-align: left;
+}
+
+.notebook-items-grid .pin-note-button,
+.notebook-items-grid .remove-from-notebook-button,
+.notebook-items-grid .note-card-delete-button,
+.notebook-items-grid .color-picker-label {
+  min-width: 0;
+  border-width: 1px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  line-height: 1.1;
 }
 
 .notebook-open-hint {
@@ -597,6 +620,7 @@
 .note-card.pinned,
 .slide-card:hover,
 .slide-card.pinned,
+.whiteboard-card.pinned,
 .notebook-card.pinned {
   background: #eaf3ff;
   transform: translateY(-2px);
@@ -604,7 +628,8 @@
 }
 
 .note-card.dragging,
-.slide-card.dragging {
+.slide-card.dragging,
+.whiteboard-card.dragging {
   cursor: grabbing;
   opacity: 0.55;
 }
@@ -1050,6 +1075,7 @@
 }
 
 .note-content-input {
+  position: relative;
   flex: 1;
   min-height: 360px;
   width: 100%;
@@ -1061,6 +1087,44 @@
   background: #ffffff;
   font-size: 1.08rem;
   line-height: 1.7;
+}
+
+.note-content-input .editor-shape,
+.slide-canvas .editor-shape {
+  position: absolute;
+  z-index: 2;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.note-content-input .editor-shape svg,
+.slide-canvas .editor-shape svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.note-content-input .editor-shape.dragging-text-box,
+.slide-canvas .editor-shape.dragging-text-box {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+.remove-from-notebook-button {
+  cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 8px;
+  padding: 2px 8px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.2);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.remove-from-notebook-button:hover {
+  background: rgba(37, 99, 235, 0.2);
 }
 
 .note-content-input:empty::before {
@@ -1836,6 +1900,11 @@
 .notes-board {
   width: min(1180px, 100%);
   padding-top: 66px;
+  gap: 16px;
+}
+
+.notes-board .notes-title-card {
+  margin-top: 4px;
 }
 
 .organization-layout {
@@ -1900,7 +1969,8 @@
 }
 
 .home-content-grid .note-card,
-.slide-card {
+.home-content-grid .slide-card,
+.home-content-grid .whiteboard-card {
   aspect-ratio: 1;
   min-height: 0;
   border-radius: 18px;
@@ -2016,7 +2086,7 @@
 .slide-editor-page {
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .slide-editor {
@@ -2029,7 +2099,7 @@
   gap: 18px;
   padding: 22px;
   border-radius: 28px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .slide-editor-title-card,
@@ -2058,16 +2128,25 @@
 }
 
 .slide-editor-toolbar {
+  position: relative;
+  z-index: 20;
   display: grid;
   grid-template-columns: repeat(4, minmax(92px, 1fr));
   gap: 12px;
   align-content: center;
+  overflow: visible;
   border-radius: 28px;
   padding: 14px;
 }
 
 .slide-editor-toolbar .format-menu {
+  position: relative;
   display: grid;
+  overflow: visible;
+}
+
+.slide-editor-toolbar .format-menu.open {
+  z-index: 40;
 }
 
 .slide-editor-toolbar .format-button,
@@ -2080,6 +2159,9 @@
 
 .slide-editor-toolbar .format-dropdown {
   right: 0;
+  z-index: 50;
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
 }
 
 .slide-editor-toolbar .filler-button {
@@ -2088,6 +2170,8 @@
 }
 
 .slide-editor-actions {
+  position: relative;
+  z-index: 1;
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
@@ -2160,6 +2244,151 @@
 
 .slide-context-menu button:hover {
   background: rgba(185, 28, 28, 0.35);
+}
+
+/* ===== Whiteboard editor ===== */
+.whiteboard-editor-page {
+  display: grid;
+  place-items: center;
+}
+
+.whiteboard-editor {
+  width: min(1180px, 100%);
+  min-height: min(760px, calc(100vh - 56px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 28px;
+}
+
+.whiteboard-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.whiteboard-tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.whiteboard-tool-label {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.whiteboard-toolbar .format-button.active,
+.whiteboard-color-swatch.active,
+.whiteboard-size-button.active {
+  color: #ffffff;
+  background: rgba(37, 99, 235, 0.75);
+}
+
+.whiteboard-color-swatch {
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(148, 163, 184, 0.55);
+  border-radius: 999px;
+  padding: 0;
+}
+
+.whiteboard-color-swatch.active {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgba(37, 99, 235, 0.85);
+}
+
+.whiteboard-size-button {
+  cursor: pointer;
+  min-width: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.58);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.whiteboard-canvas-wrap {
+  flex: 1;
+  min-height: 420px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 28px;
+  padding: 18px;
+  background: rgba(241, 245, 249, 0.65);
+  overflow: hidden;
+}
+
+.whiteboard-stage {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  aspect-ratio: 16 / 9;
+}
+
+.whiteboard-canvas,
+.whiteboard-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+}
+
+.whiteboard-canvas {
+  display: block;
+  background: #ffffff;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.whiteboard-overlay {
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.whiteboard-stage[data-whiteboard-active-tool="text-box"] .whiteboard-overlay {
+  pointer-events: auto;
+  cursor: text;
+}
+
+.whiteboard-overlay .whiteboard-text-box {
+  position: absolute;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: move;
+  display: inline-block;
+  min-width: 160px;
+  max-width: min(420px, calc(100% - 32px));
+  border: 1px dashed rgba(15, 23, 42, 0.35);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.92);
+  text-align: left;
+  outline: none;
+  touch-action: none;
+  user-select: text;
+}
+
+.whiteboard-overlay .whiteboard-text-box:focus {
+  border-style: solid;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+
+.whiteboard-overlay .whiteboard-text-box.dragging-text-box {
+  user-select: none;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
 }
 
 .slide-canvas {
