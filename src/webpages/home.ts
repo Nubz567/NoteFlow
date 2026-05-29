@@ -1,4 +1,5 @@
 import "./home.css";
+import { NOTEFLOW_VERSION } from "../version";
 import { hasSupabaseConfig, supabase, supabaseConfigError } from "./supabase";
 
 type Note = {
@@ -428,7 +429,7 @@ function renderSettingsPage() {
 
           <article class="settings-card">
             <h2>Version</h2>
-            <p>NoteFlow 0.1.0</p>
+            <p>NoteFlow ${escapeHtml(NOTEFLOW_VERSION)}</p>
           </article>
 
           ${
